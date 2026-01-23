@@ -38,6 +38,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY --chown=appuser:appuser . .
 
+# Create directory for PyDAL migration files with proper permissions
+RUN mkdir -p /app/databases && chown appuser:appuser /app/databases
+
 # Switch to non-root user
 USER appuser
 

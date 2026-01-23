@@ -1,0 +1,79 @@
+name: cerberus-vpn-ipsec
+version: "1.0.0"
+description: "Cerberus IPSec VPN Service - Enterprise-grade VPN protocol"
+
+service:
+  type: vpn
+  protocol: ipsec
+  status: active
+
+container:
+  image: cerberus/cerberus-vpn-ipsec:latest
+  name: cerberus-vpn-ipsec
+  restart_policy: always
+
+network:
+  ports:
+    - port: 500
+      protocol: udp
+      description: "IPSec IKE (Internet Key Exchange) port"
+    - port: 4500
+      protocol: udp
+      description: "IPSec NAT-T (Network Address Traversal) port"
+  exposed_ports:
+    - 500
+    - 4500
+
+endpoints:
+  health:
+    path: /health
+    method: GET
+    description: "Health check endpoint"
+    expected_status: 200
+
+  connections:
+    path: /connections
+    method: GET
+    description: "List IPSec connections"
+    expected_status: 200
+    response_type: json
+
+  status:
+    path: /status
+    method: GET
+    description: "Retrieve IPSec daemon status"
+    expected_status: 200
+    response_type: json
+
+health_checks:
+  startup:
+    endpoint: /health
+    timeout: 30s
+    retries: 5
+    interval: 5s
+
+  liveness:
+    endpoint: /health
+    timeout: 10s
+    retries: 3
+    interval: 30s
+
+  readiness:
+    endpoint: /status
+    timeout: 10s
+    retries: 3
+    interval: 10s
+
+daemon:
+  name: charon
+  description: "Strongswan IPSec daemon"
+  process: charon
+
+metadata:
+  author: Penguin Tech Inc
+  license: Limited AGPL3
+  tags:
+    - vpn
+    - ipsec
+    - networking
+    - enterprise

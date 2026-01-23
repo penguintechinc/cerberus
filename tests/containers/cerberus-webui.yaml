@@ -1,0 +1,382 @@
+##############################################################################
+# Cerberus WebUI Container Test Configuration
+# Purpose: Define test scenarios, routes, and expected responses
+# Used by: test-cerberus-webui.sh and CI/CD pipelines
+##############################################################################
+
+---
+container:
+  name: cerberus-webui
+  type: react
+  description: Cerberus WebUI - Node.js + React frontend shell
+  image: cerberus-webui
+  ports:
+    - "3000"
+
+# ============================================================================
+# Static Asset Tests
+# ============================================================================
+
+assets:
+  index_html:
+    path: /
+    description: Main index.html entry point
+    expected_status: 200
+    expected_content_type: text/html
+    timeout: 5s
+    tags:
+      - assets
+      - html
+
+  javascript_bundles:
+    path: /dist/
+    description: Vite-built JavaScript bundles
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - assets
+      - javascript
+
+  css_bundles:
+    path: /dist/
+    description: Compiled CSS stylesheets
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - assets
+      - css
+
+# ============================================================================
+# Page Routes - Authentication
+# ============================================================================
+
+routes:
+  login_page:
+    method: GET
+    path: /login
+    description: User login page
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - authentication
+      - public
+
+# ============================================================================
+# Page Routes - Dashboard & Core
+# ============================================================================
+
+  root_page:
+    method: GET
+    path: /
+    description: Dashboard root page (protected, redirects to /login if not authenticated)
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - dashboard
+      - protected
+
+  dashboard_page:
+    method: GET
+    path: /dashboard
+    description: Dashboard page (redirects to / if not authenticated)
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - dashboard
+      - protected
+
+  profile_page:
+    method: GET
+    path: /profile
+    description: User profile page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    tags:
+      - profile
+      - protected
+
+# ============================================================================
+# Page Routes - Network Firewall Configuration
+# ============================================================================
+
+  firewall_page:
+    method: GET
+    path: /firewall
+    description: NGFW Firewall configuration page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+      - maintainer
+    tags:
+      - ngfw
+      - firewall
+      - protected
+
+  ips_page:
+    method: GET
+    path: /ips
+    description: Intrusion Prevention System configuration page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+      - maintainer
+    tags:
+      - ngfw
+      - ips
+      - protected
+
+  vpn_page:
+    method: GET
+    path: /vpn
+    description: VPN configuration page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+      - maintainer
+    tags:
+      - vpn
+      - protected
+
+  filter_page:
+    method: GET
+    path: /filter
+    description: Content Filter configuration page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+      - maintainer
+    tags:
+      - ngfw
+      - filter
+      - protected
+
+# ============================================================================
+# Page Routes - Administration
+# ============================================================================
+
+  settings_page:
+    method: GET
+    path: /settings
+    description: System settings page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+      - maintainer
+    tags:
+      - settings
+      - protected
+
+  users_page:
+    method: GET
+    path: /users
+    description: User management page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+    tags:
+      - users
+      - admin
+      - protected
+
+  user_detail_page:
+    method: GET
+    path: /users/1
+    description: Individual user detail page
+    expected_status: 200
+    timeout: 5s
+    auth_required: false
+    role_restricted: true
+    allowed_roles:
+      - admin
+    tags:
+      - users
+      - admin
+      - protected
+
+# ============================================================================
+# Content-Type Verification
+# ============================================================================
+
+content_types:
+  html_pages:
+    paths:
+      - /
+      - /login
+      - /dashboard
+      - /firewall
+      - /ips
+      - /vpn
+      - /filter
+      - /profile
+      - /settings
+      - /users
+    expected: text/html
+    tags:
+      - content_type
+      - html
+
+  javascript_assets:
+    paths:
+      - /dist/
+    expected: text/javascript
+    tags:
+      - content_type
+      - javascript
+
+  css_assets:
+    paths:
+      - /dist/
+    expected: text/css
+    tags:
+      - content_type
+      - css
+
+# ============================================================================
+# SPA Routing & Redirect Tests
+# ============================================================================
+
+spa_behavior:
+  invalid_route:
+    path: /nonexistent-page-xyz
+    description: Invalid routes should serve index.html (SPA behavior)
+    expected_status: 200
+    expected_content_type: text/html
+    tags:
+      - spa
+      - routing
+
+# ============================================================================
+# Error Cases & Edge Cases
+# ============================================================================
+
+error_cases:
+  - name: Invalid Route
+    method: GET
+    path: /api/v1/invalid
+    description: Non-existent route should return index.html in SPA
+    expected_status: 200
+    tags:
+      - error_handling
+      - spa
+
+  - name: Invalid HTTP Method
+    method: POST
+    path: /
+    description: POST to SPA root should still serve the app
+    expected_status: 200
+    tags:
+      - error_handling
+      - methods
+
+# ============================================================================
+# Performance Benchmarks
+# ============================================================================
+
+performance:
+  page_load_time:
+    target_latency_ms: 500
+    acceptable_latency_ms: 2000
+    description: Target page load time for React app
+
+  asset_load_time:
+    target_latency_ms: 100
+    acceptable_latency_ms: 500
+    description: Target load time for static assets
+
+  index_html:
+    target_latency_ms: 50
+    acceptable_latency_ms: 200
+    description: Target load time for index.html
+
+# ============================================================================
+# Security & Headers
+# ============================================================================
+
+security:
+  headers_expected:
+    - x-content-type-options
+    - x-frame-options
+    - cache-control
+  tags:
+    - security
+    - headers
+
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+dependencies:
+  services:
+    - flask-backend
+    - go-backend
+
+  ports:
+    webui: 3000
+    flask_api: 5000
+    go_api: 8080
+
+# ============================================================================
+# Test Environments
+# ============================================================================
+
+environments:
+  development:
+    webui_url: http://localhost:3000
+    api_url: http://localhost:5000
+    timeout: 10s
+    environment: development
+
+  staging:
+    webui_url: http://cerberus-webui.staging.local:3000
+    api_url: http://cerberus-api.staging.local:5000
+    timeout: 30s
+    environment: staging
+
+  production:
+    webui_url: https://cerberus.example.com
+    api_url: https://api.cerberus.example.com
+    timeout: 60s
+    environment: production
+
+# ============================================================================
+# Test Tags & Categories
+# ============================================================================
+
+tags:
+  health: Health and readiness checks
+  assets: Static asset loading
+  authentication: Authentication flows
+  dashboard: Dashboard and main UI
+  ngfw: NGFW-related pages
+  firewall: Firewall configuration
+  ips: Intrusion Prevention System
+  vpn: VPN configuration
+  filter: Content filtering
+  settings: System settings
+  users: User management
+  protected: Protected/authenticated routes
+  public: Public routes
+  spa: Single Page Application behavior
+  error_handling: Error case handling
+  security: Security-related tests
+  performance: Performance benchmarks
+  content_type: Content-Type verification

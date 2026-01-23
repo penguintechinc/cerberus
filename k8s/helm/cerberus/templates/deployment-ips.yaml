@@ -1,0 +1,86 @@
+{{- if .Values.ips.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "cerberus.fullname" . }}-ips
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: ips
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cerberus.component.selectorLabels" (merge (dict "component" "ips") .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.component.labels" (merge (dict "component" "ips") .) | nindent 8 }}
+      {{- with .Values.ips.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "cerberus.serviceAccountName" . }}
+      {{- include "cerberus.imagePullSecrets" . | nindent 6 }}
+      {{- if .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- end }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: ips
+          {{- with .Values.ips.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.ips.image.repository }}:{{ .Values.ips.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.ips.image.pullPolicy }}
+          env:
+            - name: IPS_MODE
+              value: {{ .Values.ips.mode | default "ips" | quote }}
+            - name: INTERFACE
+              value: {{ .Values.ips.interface | default "eth0" | quote }}
+            - name: REDIS_HOST
+              value: {{ include "cerberus.redis.host" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "cerberus.redis.port" . | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.ips.logLevel | default "info" | quote }}
+            {{- with .Values.ips.env.additional }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.ips.resources | nindent 12 }}
+          volumeMounts:
+            - name: suricata-config
+              mountPath: /etc/suricata
+              readOnly: true
+            - name: var-log
+              mountPath: /var/log/suricata
+            - name: var-run
+              mountPath: /var/run/suricata
+            {{- with .Values.ips.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: suricata-config
+          configMap:
+            name: {{ include "cerberus.fullname" . }}-ips-config
+        - name: var-log
+          emptyDir: {}
+        - name: var-run
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

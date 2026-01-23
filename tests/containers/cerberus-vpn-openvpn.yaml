@@ -1,0 +1,75 @@
+name: cerberus-vpn-openvpn
+version: "1.0.0"
+description: "Cerberus OpenVPN Service - Open-source SSL/TLS based VPN protocol"
+
+service:
+  type: vpn
+  protocol: openvpn
+  status: active
+
+container:
+  image: cerberus/cerberus-vpn-openvpn:latest
+  name: cerberus-vpn-openvpn
+  restart_policy: always
+
+network:
+  ports:
+    - port: 1194
+      protocol: udp
+      description: "OpenVPN tunnel port"
+  exposed_ports:
+    - 1194
+
+endpoints:
+  health:
+    path: /health
+    method: GET
+    description: "Health check endpoint"
+    expected_status: 200
+
+  clients:
+    path: /clients
+    method: GET
+    description: "List connected VPN clients"
+    expected_status: 200
+    response_type: json
+
+  status:
+    path: /status
+    method: GET
+    description: "Retrieve OpenVPN daemon status"
+    expected_status: 200
+    response_type: json
+
+health_checks:
+  startup:
+    endpoint: /health
+    timeout: 30s
+    retries: 5
+    interval: 5s
+
+  liveness:
+    endpoint: /health
+    timeout: 10s
+    retries: 3
+    interval: 30s
+
+  readiness:
+    endpoint: /status
+    timeout: 10s
+    retries: 3
+    interval: 10s
+
+daemon:
+  name: openvpn
+  description: "OpenVPN daemon"
+  process: openvpn
+
+metadata:
+  author: Penguin Tech Inc
+  license: Limited AGPL3
+  tags:
+    - vpn
+    - openvpn
+    - networking
+    - ssl-tls

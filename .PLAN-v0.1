@@ -1,0 +1,132 @@
+# Cerberus NGFW/UTM Implementation Plan v0.1
+
+**Project**: Datacenter edge firewall/proxy solution wrapping MarchProxy
+**Deployment**: 1-2 node microk8s (baremetal or privileged LXD)
+**Performance Target**: 40Gbps+ line rate
+**Plan Date**: 2025-12-27
+
+---
+
+## CRITICAL RULES
+
+1. **No Stubs/Placeholders** - Everything fully implemented
+2. **API-First** - Every feature has API + WebUI
+3. **WebUI → Cerberus API → Backend App** (never direct)
+4. **Temp files in /tmp/cerberus-*** only
+
+---
+
+## Architecture
+
+```
+CERBERUS WEBUI (React) → CERBERUS API (Flask) → Backend Apps
+                                                  ├── MarchProxy API
+                                                  ├── Suricata IPS/IDS
+                                                  ├── VPN Servers
+                                                  ├── Arkime
+                                                  └── Zeek
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Foundation ✅ COMPLETE
+- [x] Rename template containers
+- [x] Add MarchProxy as submodule
+- [x] Unified docker-compose
+- [x] OpenSearch cluster
+- [x] Fluent Bit log shipping
+- [x] Prometheus + Grafana
+- [x] NGFW PyDAL models
+- [x] Firewall API endpoints
+- [x] IPS API endpoints
+- [x] XDP API endpoints
+- [x] VPN API endpoints
+- [x] Filter API endpoints
+- [x] Logs (OpenSearch) API
+- [x] MarchProxy REST bridge
+
+### Phase 2: IPS + XDP
+- [ ] cerberus-ips (Suricata 7.x)
+- [ ] cerberus-xdp (packet steering)
+- [ ] XDP filter rules API
+- [ ] IPS API endpoints
+- [ ] EVE JSON ingestion
+
+### Phase 3: Content Filtering
+- [ ] cerberus-filter (Go)
+- [ ] URL categorization
+- [ ] cerberus-ssl-inspector
+- [ ] Filter API endpoints
+
+### Phase 4: VPN Gateway
+- [ ] cerberus-vpn-wireguard
+- [ ] cerberus-vpn-ipsec
+- [ ] cerberus-vpn-openvpn
+- [ ] VPN user management API
+
+### Phase 5: WebUI
+- [ ] Dashboard layout
+- [ ] Firewall rules view
+- [ ] IPS alerts view
+- [ ] Filter config view
+- [ ] VPN config views
+- [ ] XDP rules view
+- [ ] Log Explorer (OpenSearch)
+- [ ] Metrics Dashboard (Prometheus/Grafana)
+
+### Phase 6: NSM (Optional)
+- [ ] MinIO + s3fs
+- [ ] cerberus-arkime
+- [ ] cerberus-zeek
+- [ ] cerberus-ids (batch)
+- [ ] NSM API + WebUI
+
+### Phase 7: Deployment
+- [ ] k8s/manifests/
+- [ ] k8s/helm/cerberus/
+- [ ] Docker Compose profiles
+- [ ] Helm values (dev, prod, ha)
+
+### Phase 8: Testing
+- [ ] Unified test runner
+- [ ] Per-container configs
+- [ ] API tests
+- [ ] Performance benchmarks
+
+### Phase 9: Documentation
+- [ ] README
+- [ ] QUICKSTART
+- [ ] LXD_DEPLOYMENT (security flags)
+- [ ] K8S_DEPLOYMENT
+- [ ] API_REFERENCE
+
+---
+
+## Key Containers
+
+| Container | Purpose |
+|-----------|---------|
+| cerberus-api | Flask NGFW control plane |
+| cerberus-webui | React dashboard |
+| cerberus-ips | Suricata IPS (inline) |
+| cerberus-xdp | XDP packet steering |
+| cerberus-filter | Content filtering |
+| cerberus-vpn-* | VPN servers |
+| cerberus-arkime | PCAP capture |
+| cerberus-zeek | Network analysis |
+| cerberus-ids | Batch IDS |
+
+---
+
+## Current Progress
+
+**Phase 1: COMPLETE** (2025-12-27)
+- Created unified docker-compose.yml with all services
+- Added MarchProxy as git submodule
+- Configured OpenSearch, Fluent Bit, Prometheus, Grafana
+- Implemented all NGFW PyDAL models
+- Created complete API layer (firewall, ips, xdp, vpn, filter, logs, proxy)
+
+**Next: Phase 2 - IPS + XDP containers**

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cerberus
+  labels:
+    app: cerberus
+    version: v1

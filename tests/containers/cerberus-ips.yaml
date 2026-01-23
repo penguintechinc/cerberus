@@ -1,0 +1,490 @@
+##############################################################################
+# Cerberus IPS Container Test Configuration
+# Purpose: Define test scenarios, endpoints, and expected responses
+# Used by: test-cerberus-ips.sh and CI/CD pipelines
+##############################################################################
+
+---
+container:
+  name: cerberus-ips
+  type: suricata-ips
+  description: Cerberus IPS - Suricata 7.x Inline Intrusion Prevention System
+  image: cerberus-ips
+  executable: suricata
+
+  # Process configuration
+  process:
+    name: suricata
+    healthcheck_timeout: 10s
+    startup_timeout: 60s
+    graceful_shutdown_timeout: 30s
+
+  # Exposed ports and protocols
+  ports:
+    metrics: 9100
+    prometheus: 9100
+
+  # Volume mounts
+  volumes:
+    rules: /var/lib/suricata/rules
+    logs: /var/log/suricata
+    socket: /var/run/suricata
+    config: /etc/suricata
+
+  # Socket configuration
+  sockets:
+    command:
+      path: /var/run/suricata/suricata-command.socket
+      type: unix
+      description: Suricata command and control socket
+      timeout: 5s
+
+  # Log files
+  logs:
+    eve:
+      path: /var/log/suricata/eve.json
+      format: jsonl
+      rotation: hourly
+      description: EVE JSON event log
+
+    fast:
+      path: /var/log/suricata/fast.log
+      format: text
+      description: Fast alert log
+
+    stats:
+      path: /var/log/suricata/stats.json
+      format: json
+      interval: 10s
+      description: Statistics dump
+
+    stats_legacy:
+      path: /var/log/suricata/stats.log
+      format: text
+      description: Statistics log (legacy format)
+
+# ============================================================================
+# Endpoints & Health Checks
+# ============================================================================
+
+endpoints:
+  # ============================================================================
+  # Health & Monitoring Endpoints
+  # ============================================================================
+
+  metrics:
+    method: GET
+    path: /metrics
+    port: 9100
+    protocol: http
+    description: Prometheus metrics endpoint
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - monitoring
+      - prometheus
+    expected_fields:
+      - suricata_
+      - process_
+
+  # ============================================================================
+  # Socket-Based Commands (via suricatasc)
+  # ============================================================================
+
+  iface-list:
+    method: SOCKET
+    command: iface-list
+    socket: /var/run/suricata/suricata-command.socket
+    description: List active network interfaces
+    expected_response: "ok"
+    timeout: 5s
+    tags:
+      - socket
+      - interfaces
+      - status
+
+  uptime:
+    method: SOCKET
+    command: uptime
+    socket: /var/run/suricata/suricata-command.socket
+    description: Get Suricata uptime
+    timeout: 5s
+    tags:
+      - socket
+      - status
+      - monitoring
+
+  rule-list:
+    method: SOCKET
+    command: rule-list"
+    socket: /var/run/suricata/suricata-command.socket
+    description: List loaded rules
+    timeout: 5s
+    tags:
+      - socket
+      - rules
+      - status
+
+# ============================================================================
+# File Checks & Validations
+# ============================================================================
+
+file_checks:
+  eve_log:
+    path: /var/log/suricata/eve.json
+    type: json
+    required: true
+    description: EVE JSON event log
+    timeout: 60s
+    tags:
+      - logging
+      - eve
+      - json
+
+  fast_log:
+    path: /var/log/suricata/fast.log
+    type: text
+    required: false
+    description: Fast alert log
+    tags:
+      - logging
+      - alerts
+
+  rules_file:
+    path: /var/lib/suricata/rules/suricata.rules
+    type: text
+    required: true
+    description: Loaded Suricata rules
+    min_size: 100
+    tags:
+      - configuration
+      - rules
+
+  config_file:
+    path: /etc/suricata/suricata.yaml
+    type: yaml
+    required: true
+    description: Suricata main configuration
+    tags:
+      - configuration
+      - yaml
+
+  threshold_config:
+    path: /etc/suricata/threshold.config
+    type: text
+    required: true
+    description: Alert threshold configuration
+    tags:
+      - configuration
+      - threshold
+
+  classification_config:
+    path: /etc/suricata/classification.config
+    type: text
+    required: true
+    description: Rule classification definitions
+    tags:
+      - configuration
+      - classification
+
+# ============================================================================
+# EVE Log Event Types
+# ============================================================================
+
+eve_log:
+  format: jsonl
+  expected_event_types:
+    - alert
+    - anomaly
+    - http
+    - dns
+    - tls
+    - ssh
+    - smtp
+    - flow
+    - capture
+    - payload
+    - file-data
+    - drop
+    - metadata
+
+  alert_fields:
+    required:
+      - timestamp
+      - flow_id
+      - event_type
+      - src_ip
+      - dest_ip
+      - src_port
+      - dest_port
+      - proto
+      - alert
+    optional:
+      - payload
+      - payload_printable
+      - packet
+      - http_body
+      - metadata
+
+  performance:
+    max_event_size_bytes: 65536
+    expected_timestamp_format: "2024-*T*Z"
+    community_id_enabled: true
+
+# ============================================================================
+# Health Checks
+# ============================================================================
+
+health_checks:
+  process_running:
+    name: Process Running
+    check: pgrep -x "suricata"
+    expected_result: 0
+    timeout: 5s
+    critical: true
+
+  socket_exists:
+    name: Command Socket Exists
+    check: test -S /var/run/suricata/suricata-command.socket
+    expected_result: 0
+    timeout: 5s
+    critical: false
+
+  rules_loaded:
+    name: Rules File Present
+    check: test -f /var/lib/suricata/rules/suricata.rules
+    expected_result: 0
+    timeout: 5s
+    critical: true
+
+  eve_log_writable:
+    name: EVE Log Directory Writable
+    check: test -w /var/log/suricata/
+    expected_result: 0
+    timeout: 5s
+    critical: true
+
+# ============================================================================
+# Performance Benchmarks
+# ============================================================================
+
+performance:
+  # Baseline resource usage (per 1K rules)
+  memory_baseline_mb: 200
+  memory_per_1k_rules_mb: 50
+  max_memory_mb: 2048
+
+  # CPU usage expectations
+  cpu_usage_percent_idle: 10
+  cpu_usage_percent_active: 50
+
+  # Network processing
+  packets_per_second_target: 50000
+  packets_per_second_minimum: 10000
+
+  # Log performance
+  eve_log_write_latency_ms: 10
+  alert_processing_latency_ms: 5
+
+  # Socket responsiveness
+  socket_command_response_time_ms: 100
+  socket_command_timeout_ms: 5000
+
+  # Metrics endpoints
+  metrics_endpoint_latency_ms: 50
+  metrics_update_interval_s: 15
+
+# ============================================================================
+# Statistics & Monitoring Expectations
+# ============================================================================
+
+statistics:
+  # Counters expected in stats output
+  expected_counters:
+    - decode.ipv4
+    - decode.ipv6
+    - decode.tcp
+    - decode.udp
+    - decode.icmp
+    - flow.total
+    - flow.new
+    - app_layer.http.total
+    - app_layer.dns.total
+    - detect.alert
+
+  # Rule statistics
+  rules:
+    expected_minimum_count: 100
+    expected_maximum_count: 100000
+    active_rule_ratio: 0.8
+
+  # Alert statistics
+  alerts:
+    expected_sid_range: "1000000-9999999"
+    expected_revision_min: 1
+
+# ============================================================================
+# Configuration Validation
+# ============================================================================
+
+configuration:
+  # Required Suricata configuration sections
+  required_sections:
+    - vars
+    - default-log-dir
+    - outputs
+    - rule-files
+    - threshold-file
+    - classification-file
+    - reference-file
+    - af-packet
+    - nfq
+
+  # Required environment variables
+  required_env:
+    - SURICATA_MODE
+    - SURICATA_INTERFACE
+    - SURICATA_HOME_NET
+    - LOG_LEVEL
+
+  # Optional environment variables
+  optional_env:
+    - NFQ_QUEUE
+    - RULES_SOURCE
+    - UPDATE_INTERVAL
+
+  # Output modes
+  supported_modes:
+    - ips
+    - ips-nfq
+    - ids
+
+  # Interfaces expected to be monitored
+  interfaces:
+    expected_minimum: 1
+    expected_maximum: 16
+
+# ============================================================================
+# Error Cases & Edge Cases
+# ============================================================================
+
+error_cases:
+  - name: Invalid Configuration Syntax
+    check: suricata -c /etc/suricata/suricata.yaml -T
+    expected_status: 0
+    description: Configuration file syntax validation
+    tags:
+      - validation
+      - configuration
+
+  - name: Corrupted Eve Log
+    check: test -f /var/log/suricata/eve.json
+    expected_status: 0
+    description: Eve log file existence
+    recovery: rotate and restart
+    tags:
+      - logging
+      - recovery
+
+  - name: Missing Rules
+    check: test -s /var/lib/suricata/rules/suricata.rules
+    expected_status: 0
+    description: Rules file not empty
+    recovery: download via update-rules.sh
+    tags:
+      - rules
+      - recovery
+
+  - name: Socket Connection Failure
+    check: test -S /var/run/suricata/suricata-command.socket
+    expected_status: 0
+    description: Command socket availability
+    recovery: restart Suricata
+    tags:
+      - socket
+      - recovery
+
+  - name: Disk Space Critical
+    check: df /var/log/suricata
+    description: Disk space availability for logs
+    min_free_gb: 5
+    tags:
+      - disk
+      - resources
+
+# ============================================================================
+# Dependencies & Prerequisites
+# ============================================================================
+
+dependencies:
+  # External services
+  services:
+    - none  # IPS runs standalone
+
+  # Required binaries
+  binaries:
+    - suricata
+    - suricatasc
+    - suricata-update
+
+  # Required libraries
+  libraries:
+    - libpcap
+    - libpcre
+    - libyaml
+    - libjansson
+    - libnet
+    - libnetfilter-queue
+    - libnfnetlink
+    - libhtp
+    - liblz4
+
+  # Kernel features required
+  kernel_features:
+    - NETFILTER_QUEUE (for ips-nfq mode)
+    - AF_PACKET (for ips mode)
+    - NFQUEUE (for inline blocking)
+
+# ============================================================================
+# Test Environments
+# ============================================================================
+
+environments:
+  development:
+    api_url: http://localhost:9100
+    socket_path: /var/run/suricata/suricata-command.socket
+    log_dir: /var/log/suricata
+    timeout: 30s
+    mode: ids
+
+  staging:
+    api_url: http://cerberus-ips.staging.local:9100
+    socket_path: /var/run/suricata/suricata-command.socket
+    log_dir: /var/log/suricata
+    timeout: 30s
+    mode: ids
+
+  production:
+    api_url: http://cerberus-ips.internal:9100
+    socket_path: /var/run/suricata/suricata-command.socket
+    log_dir: /var/log/suricata
+    timeout: 60s
+    mode: ips
+    interface: eth0
+
+# ============================================================================
+# Success Criteria
+# ============================================================================
+
+success_criteria:
+  - Process running: true
+  - Command socket available: true
+  - Rules loaded: >= 100
+  - EVE log created: true
+  - Configuration valid: true
+  - Memory usage < 2GB: true
+  - CPU usage < 80%: true
+  - Alert responsiveness < 100ms: true
+  - Zero crash exits: true
+  - All critical checks passing: true

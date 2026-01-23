@@ -1,0 +1,75 @@
+name: cerberus-vpn-wireguard
+version: "1.0.0"
+description: "Cerberus WireGuard VPN Service - High-performance, modern VPN protocol"
+
+service:
+  type: vpn
+  protocol: wireguard
+  status: active
+
+container:
+  image: cerberus/cerberus-vpn-wireguard:latest
+  name: cerberus-vpn-wireguard
+  restart_policy: always
+
+network:
+  ports:
+    - port: 51820
+      protocol: udp
+      description: "WireGuard peer connection port"
+  exposed_ports:
+    - 51820
+
+endpoints:
+  health:
+    path: /health
+    method: GET
+    description: "Health check endpoint"
+    expected_status: 200
+
+  peers:
+    path: /peers
+    method: GET
+    description: "List connected peers"
+    expected_status: 200
+    response_type: json
+
+  config:
+    path: /config
+    method: GET
+    description: "Retrieve WireGuard configuration"
+    expected_status: 200
+    response_type: json
+
+health_checks:
+  startup:
+    endpoint: /health
+    timeout: 30s
+    retries: 5
+    interval: 5s
+
+  liveness:
+    endpoint: /health
+    timeout: 10s
+    retries: 3
+    interval: 30s
+
+  readiness:
+    endpoint: /peers
+    timeout: 10s
+    retries: 3
+    interval: 10s
+
+interface:
+  name: wg0
+  type: wireguard
+  mtu: 1420
+
+metadata:
+  author: Penguin Tech Inc
+  license: Limited AGPL3
+  tags:
+    - vpn
+    - wireguard
+    - networking
+    - high-performance

@@ -1,0 +1,199 @@
+{{- if .Values.api.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-api
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: api
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.api.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.api.service.type }}
+  {{- if eq .Values.api.service.type "LoadBalancer" }}
+  {{- with .Values.api.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.api.service.port | default 5000 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "api") .) | nindent 4 }}
+{{- end }}
+
+{{- if .Values.webui.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-webui
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: webui
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.webui.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.webui.service.type }}
+  {{- if eq .Values.webui.service.type "LoadBalancer" }}
+  {{- with .Values.webui.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.webui.service.port | default 80 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "webui") .) | nindent 4 }}
+{{- end }}
+
+{{- if .Values.filter.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-filter
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: filter
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.filter.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.filter.service.type }}
+  {{- if eq .Values.filter.service.type "LoadBalancer" }}
+  {{- with .Values.filter.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.filter.service.port | default 8080 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "filter") .) | nindent 4 }}
+{{- end }}
+
+{{- if .Values.sslInspector.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-ssl-inspector
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: ssl-inspector
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.sslInspector.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.sslInspector.service.type }}
+  {{- if eq .Values.sslInspector.service.type "LoadBalancer" }}
+  {{- with .Values.sslInspector.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.sslInspector.service.port | default 8443 }}
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "ssl-inspector") .) | nindent 4 }}
+{{- end }}
+
+{{- if .Values.vpn.wireguard.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-vpn-wireguard
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: vpn-wireguard
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.vpn.wireguard.service.type }}
+  {{- if eq .Values.vpn.wireguard.service.type "LoadBalancer" }}
+  {{- with .Values.vpn.wireguard.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.vpn.wireguard.service.port | default 51820 }}
+      targetPort: wireguard
+      protocol: {{ .Values.vpn.wireguard.service.protocol | default "UDP" }}
+      name: wireguard
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "vpn-wireguard") .) | nindent 4 }}
+{{- end }}
+
+{{- if .Values.vpn.ipsec.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-vpn-ipsec
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: vpn-ipsec
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.vpn.ipsec.service.type }}
+  {{- if eq .Values.vpn.ipsec.service.type "LoadBalancer" }}
+  {{- with .Values.vpn.ipsec.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    {{- range .Values.vpn.ipsec.service.ports }}
+    - port: {{ .port }}
+      targetPort: {{ .name }}
+      protocol: {{ .protocol | default "UDP" }}
+      name: {{ .name }}
+    {{- end }}
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "vpn-ipsec") .) | nindent 4 }}
+{{- end }}
+
+{{- if .Values.vpn.openvpn.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cerberus.fullname" . }}-vpn-openvpn
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: vpn-openvpn
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.vpn.openvpn.service.type }}
+  {{- if eq .Values.vpn.openvpn.service.type "LoadBalancer" }}
+  {{- with .Values.vpn.openvpn.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.vpn.openvpn.service.port | default 1194 }}
+      targetPort: openvpn
+      protocol: {{ .Values.vpn.openvpn.service.protocol | default "UDP" }}
+      name: openvpn
+  selector:
+    {{- include "cerberus.component.selectorLabels" (merge (dict "component" "vpn-openvpn") .) | nindent 4 }}
+{{- end }}

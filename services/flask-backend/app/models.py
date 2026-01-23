@@ -32,12 +32,26 @@ def init_db(app: Flask) -> DAL:
     """Initialize database connection and define tables."""
     db_uri = Config.get_db_uri()
 
+    # Use /app/databases for PyDAL migration files in container
+    # Falls back to current directory for local development
+    import os
+    db_folder = "/app/databases" if os.path.isdir("/app/databases") else None
+
+    # Check if we need to fake_migrate (table files don't exist but tables might)
+    fake_migrate = False
+    if db_folder:
+        # If db_folder exists but has no .table files, use fake_migrate
+        table_files = [f for f in os.listdir(db_folder) if f.endswith('.table')] if os.path.isdir(db_folder) else []
+        fake_migrate = len(table_files) == 0
+
     db = DAL(
         db_uri,
         pool_size=Config.DB_POOL_SIZE,
         migrate=True,
-        check_reserved=["all"],
+        fake_migrate=fake_migrate,
+        check_reserved=["common"],
         lazy_tables=False,
+        folder=db_folder,
     )
 
     # Define users table

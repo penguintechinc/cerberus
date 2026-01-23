@@ -1,0 +1,247 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openvpn-config
+  namespace: cerberus-vpn
+data:
+  server.conf: |
+    port 1194
+    proto udp
+    dev tun
+    topology subnet
+    server 10.0.2.0 255.255.255.0
+    ifconfig-pool-persist /etc/openvpn/ipp.txt 0
+
+    ca /etc/openvpn/certs/ca.crt
+    cert /etc/openvpn/certs/server.crt
+    key /etc/openvpn/certs/server.key
+    dh /etc/openvpn/certs/dh.pem
+    tls-auth /etc/openvpn/certs/ta.key 0
+
+    cipher AES-256-GCM
+    ncp-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC:AES-128-CBC
+    auth SHA512
+    tls-version-min 1.3
+    tls-cipher TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+
+    compress lz4
+    push "compress lz4"
+    push "route 10.0.2.0 255.255.255.0"
+    push "dhcp-option DNS 8.8.8.8"
+    push "dhcp-option DNS 8.8.4.4"
+
+    keepalive 10 120
+    max-clients 100
+    persist-key
+    persist-tun
+
+    status /etc/openvpn/status.log
+    log /dev/stdout
+    log-append /var/log/openvpn.log
+    verb 3
+    mute 20
+
+  client-config-dir.conf: |
+    # Client-specific directives
+    # Uncomment to allow different subnets per client
+    # username-as-common-name
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openvpn-certs
+  namespace: cerberus-vpn
+  labels:
+    app: openvpn
+    component: vpn
+type: Opaque
+data:
+  # Base64 encoded certificate data (replace with actual certs)
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM5RENDQWRnQ0NRVHJ6Tk5oVmo3MkBISTg5TXpBTkJna3Foa2lHOXcwQkFRc0ZBREEvTVFzd0NRWURWUVFHREFKRGREQU1CZ05WQkFjVEEwTjBjbTluTVJNd0VRWURWUVFLRXdwSGIyOWJJRkJEUVRBZUZ3MHhOekU1TXpOQU1EQXdNREJhRncweE56RTVNREF3TURBd01EQmFNQTh4RFRBTEJnTlZCQWdNQkhObGNuWmxjaTEySVRDQlcwUWRB... # Replace with actual Base64 certificate
+  server.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM5RENDQWRnQ0NRVHJ6Tk5oVmo3MkBISTg5TXpBTkJna3Foa2lHOXcwQkFRc0ZBREEvTVFzd0NRWURWUVFHREBKRDREQU1CZ05WQkFjVEEwTjBjbTluTVJNd0VRWURWUVFLRXdwSGIyOWJJRkJEUVRBZUZ3MHhOekU1TXpOQU1EQXdNREJhRncweE56RTVNREF3TURBd01EQmFNQTh4RFRBTEJnTlZCQWdNQkhObGNuWmxjaTEySVRDQlcwUWRB... # Replace with actual Base64 certificate
+  server.key: LS0tLS1CRUdJTiBFTkNSWVBURUQgUFJJVkFURSBLRVktLS0tLQpNSUlGSFRCR0Zna3Foa2lHOXcwQkJhMEZDUVFEQkpkUVZWUXUV03NqRWZ6TVNDUXBBakJLQ0F3JHNCRmc3UjREa1lqRkJha1JGWTJOGE56ZzBN... # Replace with actual Base64 certificate
+  dh.pem: LS0tLS1CRUdJTiBESUZGSUUtSEVMTE1BTiBQQVJBTUVURVJTLS0tLS0KTUlJQ0lqQUtCZ0lEVVBBZWtOYVVOQUlMQ013MUVQeW5QUzhuRUJpdWRKc1cxWE1sWjEyb3k0M0hKcnJoM3hJCkpweXZ3Mw0K... # Replace with actual Base64 certificate
+  ta.key: LS0tLS1CRUdJTiBPUEVOVlBOIFNUQVRJQyBLRVktLS0tLQojCiMgMjA0OCBiaXQgT3BlblZQTiBzdGF0aWMga2V5CiMKLS0tLS1FTkQgT1BFTlZQTiBTVEFUSUMgS0VZLS0tLS0K... # Replace with actual Base64 certificate
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openvpn
+  namespace: cerberus-vpn
+  labels:
+    app: openvpn
+    component: vpn
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: openvpn
+  template:
+    metadata:
+      labels:
+        app: openvpn
+        component: vpn
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      hostNetwork: true
+      hostPID: false
+      hostIPC: false
+
+      securityContext:
+        privileged: true
+        runAsNonRoot: false
+        fsGroup: 0
+
+      containers:
+      - name: openvpn
+        image: kylemanna/openvpn:latest
+        imagePullPolicy: IfNotPresent
+
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_MODULE
+            - SYS_ADMIN
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+
+        ports:
+        - name: openvpn
+          containerPort: 1194
+          protocol: UDP
+          hostPort: 1194
+
+        env:
+        - name: OPENVPN_SERVER
+          value: "vpn.example.com"
+        - name: OPENVPN_PORT
+          value: "1194"
+        - name: OPENVPN_PROTOCOL
+          value: "udp"
+        - name: OPENVPN_NETWORK
+          value: "10.0.2.0"
+        - name: OPENVPN_NETMASK
+          value: "255.255.255.0"
+
+        volumeMounts:
+        - name: openvpn-config
+          mountPath: /etc/openvpn/server.conf
+          subPath: server.conf
+          readOnly: false
+        - name: openvpn-config
+          mountPath: /etc/openvpn/client-config-dir.conf
+          subPath: client-config-dir.conf
+          readOnly: false
+        - name: openvpn-certs
+          mountPath: /etc/openvpn/certs
+          readOnly: true
+        - name: openvpn-lib
+          mountPath: /etc/openvpn
+          readOnly: false
+        - name: openvpn-run
+          mountPath: /var/run/openvpn
+          readOnly: false
+        - name: dev-net-tun
+          mountPath: /dev/net/tun
+
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 2000m
+            memory: 1Gi
+
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - netstat -tuln | grep -q 1194 && echo "ok" || exit 1
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - netstat -tuln | grep -q 1194 && echo "ok" || exit 1
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+
+      volumes:
+      - name: openvpn-config
+        configMap:
+          name: openvpn-config
+          defaultMode: 0600
+      - name: openvpn-certs
+        secret:
+          secretName: openvpn-certs
+          defaultMode: 0600
+      - name: openvpn-lib
+        emptyDir: {}
+      - name: openvpn-run
+        emptyDir: {}
+      - name: dev-net-tun
+        hostPath:
+          path: /dev/net/tun
+          type: CharDevice
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openvpn
+  namespace: cerberus-vpn
+  labels:
+    app: openvpn
+    component: vpn
+spec:
+  type: LoadBalancer
+  selector:
+    app: openvpn
+  ports:
+  - name: openvpn-udp
+    port: 1194
+    targetPort: 1194
+    protocol: UDP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openvpn-internal
+  namespace: cerberus-vpn
+  labels:
+    app: openvpn
+    component: vpn
+spec:
+  type: ClusterIP
+  selector:
+    app: openvpn
+  ports:
+  - name: openvpn-udp
+    port: 1194
+    targetPort: 1194
+    protocol: UDP

@@ -1,0 +1,484 @@
+##############################################################################
+# Cerberus SSL Inspector Container Test Configuration
+# Purpose: Define test scenarios, endpoints, and expected responses
+# Used by: test-cerberus-ssl-inspector.sh and CI/CD pipelines
+##############################################################################
+
+---
+container:
+  name: cerberus-ssl-inspector
+  type: go
+  description: Cerberus SSL/TLS MITM Proxy for Deep Packet Inspection
+  image: cerberus-ssl-inspector
+
+ports:
+  api: 8080
+  proxy: 8443
+  metrics: 9106
+
+endpoints:
+  # ============================================================================
+  # Health & Status Endpoints
+  # ============================================================================
+
+  health:
+    method: GET
+    path: /healthz
+    description: Service health check
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - monitoring
+
+  readiness:
+    method: GET
+    path: /readyz
+    description: Service readiness probe
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - readiness
+
+  # ============================================================================
+  # CA Certificate Management Endpoints
+  # ============================================================================
+
+  get_ca_cert:
+    method: GET
+    path: /api/v1/ca
+    description: Get CA certificate information
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - fingerprint
+      - common_name
+      - org
+    tags:
+      - ca
+      - certificate
+      - inspection
+
+  download_ca_cert:
+    method: GET
+    path: /api/v1/ca/download
+    description: Download CA certificate in PEM format
+    expected_status: 200
+    timeout: 5s
+    response_type: application/x-pem-file
+    tags:
+      - ca
+      - certificate
+      - download
+
+  get_ca_fingerprint:
+    method: GET
+    path: /api/v1/ca/fingerprint
+    description: Get CA certificate SHA256 fingerprint
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - fingerprint
+    tags:
+      - ca
+      - certificate
+      - fingerprint
+
+  regenerate_ca:
+    method: POST
+    path: /api/v1/ca/regenerate
+    description: Regenerate CA certificate
+    expected_status: 200
+    timeout: 10s
+    response_type: application/json
+    expected_fields:
+      - status
+      - fingerprint
+    tags:
+      - ca
+      - certificate
+      - admin
+
+  # ============================================================================
+  # Bypass Rules Management Endpoints
+  # ============================================================================
+
+  list_bypass_rules:
+    method: GET
+    path: /api/v1/bypass
+    description: List all bypass rules
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - domains
+      - count
+    tags:
+      - bypass
+      - rules
+      - inspection
+
+  add_bypass_rule:
+    method: POST
+    path: /api/v1/bypass
+    description: Add domain to bypass list
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    payload:
+      domain: example.com
+    expected_fields:
+      - status
+      - domain
+    tags:
+      - bypass
+      - rules
+      - creation
+
+  remove_bypass_rule:
+    method: DELETE
+    path: /api/v1/bypass/{domain}
+    description: Remove domain from bypass list
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - status
+      - domain
+    tags:
+      - bypass
+      - rules
+      - deletion
+
+  # ============================================================================
+  # Inspection Settings Endpoints
+  # ============================================================================
+
+  get_settings:
+    method: GET
+    path: /api/v1/settings
+    description: Get current inspection settings
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - inspect_https
+      - log_connections
+      - connect_timeout
+      - read_timeout
+      - write_timeout
+      - max_connections
+      - filter_url
+    tags:
+      - settings
+      - configuration
+      - inspection
+
+  update_settings:
+    method: PUT
+    path: /api/v1/settings
+    description: Update inspection settings
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    payload:
+      inspect_https: true
+      log_connections: true
+    expected_fields:
+      - status
+    tags:
+      - settings
+      - configuration
+      - update
+
+  # ============================================================================
+  # Statistics & Monitoring Endpoints
+  # ============================================================================
+
+  get_stats:
+    method: GET
+    path: /api/v1/stats
+    description: Get proxy statistics
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - proxy
+      - ca
+    tags:
+      - statistics
+      - monitoring
+      - metrics
+
+  get_connections:
+    method: GET
+    path: /api/v1/connections
+    description: Get active SSL connections
+    expected_status: 200
+    timeout: 5s
+    response_type: application/json
+    expected_fields:
+      - connections
+      - count
+    tags:
+      - connections
+      - monitoring
+      - statistics
+
+  # ============================================================================
+  # Metrics Endpoints
+  # ============================================================================
+
+  prometheus_metrics:
+    method: GET
+    path: /metrics
+    port: 9106
+    description: Prometheus metrics endpoint
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - metrics
+      - monitoring
+      - prometheus
+
+# ============================================================================
+# Error Cases & Edge Cases
+# ============================================================================
+
+error_cases:
+  - name: Invalid Endpoint
+    method: GET
+    path: /api/v1/nonexistent
+    expected_status: 404
+    tags:
+      - error_handling
+
+  - name: Malformed JSON
+    method: POST
+    path: /api/v1/bypass
+    payload: "{invalid json"
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Missing Required Field
+    method: POST
+    path: /api/v1/bypass
+    payload: "{}"
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Invalid Domain Format
+    method: POST
+    path: /api/v1/bypass
+    payload:
+      domain: "not-a-domain"
+    expected_status: 200
+    tags:
+      - validation
+
+  - name: Empty Bypass Domain
+    method: POST
+    path: /api/v1/bypass
+    payload:
+      domain: ""
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Remove Non-existent Domain
+    method: DELETE
+    path: /api/v1/bypass/nonexistent.com
+    expected_status: 200
+    tags:
+      - bypass
+      - deletion
+
+# ============================================================================
+# Certificate Validation Tests
+# ============================================================================
+
+certificate_validation:
+  - name: CA Certificate Format
+    endpoint: /api/v1/ca/download
+    validation_type: pem_format
+    tags:
+      - certificate
+      - validation
+
+  - name: CA Fingerprint Format
+    endpoint: /api/v1/ca/fingerprint
+    validation_type: sha256_hash
+    expected_format: "^[A-F0-9]{64}$"
+    tags:
+      - certificate
+      - validation
+      - fingerprint
+
+  - name: Certificate Info Consistency
+    endpoint: /api/v1/ca
+    validation_type: json_schema
+    tags:
+      - certificate
+      - validation
+
+  - name: CA Regeneration Updates Fingerprint
+    steps:
+      - method: GET
+        path: /api/v1/ca/fingerprint
+        store_as: fingerprint_before
+      - method: POST
+        path: /api/v1/ca/regenerate
+      - method: GET
+        path: /api/v1/ca/fingerprint
+        store_as: fingerprint_after
+    validation_type: field_change
+    expected: "fingerprint_before != fingerprint_after"
+    tags:
+      - certificate
+      - regeneration
+
+# ============================================================================
+# Performance Benchmarks
+# ============================================================================
+
+performance:
+  health_check:
+    target_latency_ms: 100
+    acceptable_latency_ms: 500
+    description: Health endpoint should respond very quickly
+
+  ca_download:
+    target_latency_ms: 200
+    acceptable_latency_ms: 1000
+    description: CA certificate download should be fast
+
+  get_settings:
+    target_latency_ms: 100
+    acceptable_latency_ms: 500
+    description: Settings retrieval should be quick
+
+  get_stats:
+    target_latency_ms: 500
+    acceptable_latency_ms: 2000
+    description: Statistics gathering may take longer
+
+  bypass_operations:
+    target_latency_ms: 100
+    acceptable_latency_ms: 500
+    description: Bypass rule modifications should be fast
+
+  active_connections:
+    target_latency_ms: 500
+    acceptable_latency_ms: 2000
+    description: Listing connections may take longer with many active
+
+# ============================================================================
+# SSL Proxy Tests
+# ============================================================================
+
+ssl_proxy_tests:
+  - name: Proxy Listening
+    type: connectivity
+    host: localhost
+    port: 8443
+    description: Verify SSL proxy is listening
+
+  - name: Proxy Connection Timeout
+    type: timeout
+    timeout_ms: 5000
+    description: Verify proxy connection timeout
+
+  - name: TLS Version Support
+    type: tls_version
+    versions:
+      - "1.2"
+      - "1.3"
+    description: Verify supported TLS versions
+
+  - name: Cipher Suite Support
+    type: cipher_suites
+    description: Verify supported cipher suites
+
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+dependencies:
+  services: []
+  ports:
+    api: 8080
+    proxy: 8443
+    metrics: 9106
+
+# ============================================================================
+# Test Environments
+# ============================================================================
+
+environments:
+  development:
+    api_url: http://localhost:8080
+    proxy_addr: localhost:8443
+    timeout: 30s
+    tags:
+      - local
+      - debug
+
+  staging:
+    api_url: http://cerberus-ssl-inspector.staging.local:8080
+    proxy_addr: cerberus-ssl-inspector.staging.local:8443
+    timeout: 30s
+    tags:
+      - staging
+
+  production:
+    api_url: https://ssl-inspector.cerberus.example.com
+    proxy_addr: proxy.cerberus.example.com:8443
+    timeout: 60s
+    tls_verify: true
+    tags:
+      - production
+
+# ============================================================================
+# Test Execution Rules
+# ============================================================================
+
+execution:
+  parallel_tests: 5
+  fail_fast: false
+  retry_count: 2
+  retry_delay_ms: 500
+  test_timeout_ms: 30000
+
+# ============================================================================
+# Integration Points
+# ============================================================================
+
+integration:
+  filter_service:
+    endpoint: http://localhost:9000
+    description: Cerberus Filter Service for verdict checks
+
+  metrics_aggregation:
+    enabled: true
+    interval_seconds: 60
+    description: Aggregate metrics from proxy
+
+# ============================================================================
+# Test Metadata
+# ============================================================================
+
+metadata:
+  version: "1.0"
+  created: "2025-12-27"
+  updated: "2025-12-27"
+  maintainer: "Penguin Tech Inc"
+  last_review: "2025-12-27"
+  status: "active"

@@ -1,0 +1,346 @@
+##############################################################################
+# Cerberus API Container Test Configuration
+# Purpose: Define test scenarios, endpoints, and expected responses
+# Used by: test-cerberus-api.sh and CI/CD pipelines
+##############################################################################
+
+---
+container:
+  name: cerberus-api
+  type: flask
+  description: Cerberus NGFW Control Plane API
+  image: cerberus-flask-backend
+
+endpoints:
+  # ============================================================================
+  # Health & Status Endpoints
+  # ============================================================================
+
+  health:
+    method: GET
+    path: /healthz
+    description: Service health check
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - monitoring
+
+  readiness:
+    method: GET
+    path: /ready
+    description: Service readiness probe
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - readiness
+
+  # ============================================================================
+  # Authentication Endpoints
+  # ============================================================================
+
+  register:
+    method: POST
+    path: /api/v1/auth/register
+    description: User registration
+    expected_status: 201
+    timeout: 10s
+    payload:
+      email: test@example.com
+      password: TestPassword123!
+      first_name: Test
+      last_name: User
+    headers:
+      Content-Type: application/json
+    tags:
+      - auth
+      - registration
+
+  login:
+    method: POST
+    path: /api/v1/auth/login
+    description: User login
+    expected_status: 200
+    timeout: 10s
+    payload:
+      email: admin@cerberus.local
+      password: admin123
+    headers:
+      Content-Type: application/json
+    tags:
+      - auth
+      - authentication
+    extract_token: true
+
+  logout:
+    method: POST
+    path: /api/v1/auth/logout
+    description: User logout
+    expected_status: 200
+    timeout: 5s
+    auth_required: true
+    tags:
+      - auth
+
+  refresh_token:
+    method: POST
+    path: /api/v1/auth/refresh
+    description: Refresh authentication token
+    expected_status: 200
+    timeout: 5s
+    auth_required: true
+    tags:
+      - auth
+
+  # ============================================================================
+  # User Management Endpoints
+  # ============================================================================
+
+  get_users:
+    method: GET
+    path: /api/v1/users
+    description: List all users
+    expected_status: 200
+    timeout: 10s
+    auth_required: true
+    tags:
+      - users
+      - listing
+
+  get_user:
+    method: GET
+    path: /api/v1/users/{user_id}
+    description: Get user details
+    expected_status: 200
+    timeout: 5s
+    auth_required: true
+    tags:
+      - users
+      - details
+
+  create_user:
+    method: POST
+    path: /api/v1/users
+    description: Create new user
+    expected_status: 201
+    timeout: 10s
+    auth_required: true
+    payload:
+      email: newuser@example.com
+      password: Password123!
+      first_name: New
+      last_name: User
+      role: viewer
+    tags:
+      - users
+      - creation
+
+  update_user:
+    method: PUT
+    path: /api/v1/users/{user_id}
+    description: Update user information
+    expected_status: 200
+    timeout: 10s
+    auth_required: true
+    payload:
+      first_name: Updated
+      last_name: User
+    tags:
+      - users
+      - update
+
+  delete_user:
+    method: DELETE
+    path: /api/v1/users/{user_id}
+    description: Delete user
+    expected_status: 204
+    timeout: 10s
+    auth_required: true
+    tags:
+      - users
+      - deletion
+
+  # ============================================================================
+  # Role Management Endpoints
+  # ============================================================================
+
+  get_roles:
+    method: GET
+    path: /api/v1/roles
+    description: List all roles
+    expected_status: 200
+    timeout: 5s
+    auth_required: true
+    tags:
+      - roles
+      - listing
+
+  assign_role:
+    method: POST
+    path: /api/v1/users/{user_id}/roles
+    description: Assign role to user
+    expected_status: 200
+    timeout: 5s
+    auth_required: true
+    payload:
+      role_id: viewer
+    tags:
+      - roles
+      - assignment
+
+  # ============================================================================
+  # NGFW Configuration Endpoints
+  # ============================================================================
+
+  get_config:
+    method: GET
+    path: /api/v1/config
+    description: Get NGFW configuration
+    expected_status: 200
+    timeout: 10s
+    auth_required: true
+    tags:
+      - configuration
+      - ngfw
+
+  update_config:
+    method: PUT
+    path: /api/v1/config
+    description: Update NGFW configuration
+    expected_status: 200
+    timeout: 10s
+    auth_required: true
+    payload:
+      setting_key: setting_value
+    tags:
+      - configuration
+      - ngfw
+
+  # ============================================================================
+  # Metrics Endpoints
+  # ============================================================================
+
+  prometheus_metrics:
+    method: GET
+    path: /metrics
+    port: 9105
+    description: Prometheus metrics endpoint
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - metrics
+      - monitoring
+
+# ============================================================================
+# Error Cases & Edge Cases
+# ============================================================================
+
+error_cases:
+  - name: Invalid Endpoint
+    method: GET
+    path: /api/v1/nonexistent
+    expected_status: 404
+    tags:
+      - error_handling
+
+  - name: Missing Authorization
+    method: GET
+    path: /api/v1/users
+    expected_status: 401
+    auth_required: false
+    tags:
+      - error_handling
+      - auth
+
+  - name: Invalid Token
+    method: GET
+    path: /api/v1/users
+    expected_status: 401
+    auth_token: invalid-token
+    tags:
+      - error_handling
+      - auth
+
+  - name: Malformed JSON
+    method: POST
+    path: /api/v1/auth/login
+    payload: "{invalid json"
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Missing Required Field
+    method: POST
+    path: /api/v1/auth/login
+    payload:
+      email: test@example.com
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Invalid Email Format
+    method: POST
+    path: /api/v1/auth/register
+    payload:
+      email: not-an-email
+      password: Password123!
+      first_name: Test
+      last_name: User
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+# ============================================================================
+# Performance Benchmarks
+# ============================================================================
+
+performance:
+  health_check:
+    target_latency_ms: 100
+    acceptable_latency_ms: 500
+
+  login:
+    target_latency_ms: 500
+    acceptable_latency_ms: 2000
+
+  list_users:
+    target_latency_ms: 1000
+    acceptable_latency_ms: 5000
+
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+dependencies:
+  services:
+    - postgres
+    - redis
+    - opensearch
+
+  ports:
+    api: 5000
+    metrics: 9105
+
+# ============================================================================
+# Test Environments
+# ============================================================================
+
+environments:
+  development:
+    api_url: http://localhost:5000
+    database: postgresql://cerberus:cerberus123@localhost:5432/cerberus
+    timeout: 30s
+
+  staging:
+    api_url: http://cerberus-api.staging.local:5000
+    database: postgresql://cerberus:cerberus123@postgres:5432/cerberus
+    timeout: 30s
+
+  production:
+    api_url: https://api.cerberus.example.com
+    database: postgresql://cerberus@postgres:5432/cerberus
+    timeout: 60s

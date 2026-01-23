@@ -1,0 +1,298 @@
+{{- if .Values.api.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cerberus.fullname" . }}-api-config
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: api
+  namespace: {{ .Release.Namespace }}
+data:
+  config.py: |
+    # Flask API Configuration
+    FLASK_ENV = '{{ .Values.api.env.flaskEnv | default "production" }}'
+    DEBUG = {{ .Values.api.env.debug | default false }}
+    TESTING = {{ .Values.api.env.testing | default false }}
+
+    # Security
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    PERMANENT_SESSION_LIFETIME = 3600
+
+    # Database
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+    }
+{{- end }}
+
+{{- if .Values.webui.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cerberus.fullname" . }}-webui-config
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: webui
+  namespace: {{ .Release.Namespace }}
+data:
+  default.conf: |
+    # Nginx configuration for React WebUI
+    upstream api_backend {
+      server {{ include "cerberus.fullname" . }}-api:{{ .Values.api.service.port | default 5000 }};
+    }
+
+    server {
+      listen {{ .Values.webui.service.port | default 80 }};
+      server_name _;
+
+      # React app
+      location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+
+        # Caching
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+        }
+      }
+
+      # Proxy API requests
+      location /api {
+        proxy_pass http://api_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+      }
+
+      # Security headers
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Referrer-Policy "no-referrer-when-downgrade" always;
+      add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+    }
+{{- end }}
+
+{{- if .Values.ips.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cerberus.fullname" . }}-ips-config
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: ips
+  namespace: {{ .Release.Namespace }}
+data:
+  suricata.yaml: |
+    # Suricata IPS Configuration
+    %YAML 1.1
+    ---
+
+    vars:
+      address-groups:
+        HOME_NET: "[192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12]"
+        EXTERNAL_NET: "!$HOME_NET"
+        DNS_SERVERS: "$HOME_NET"
+        SMTP_SERVERS: "$HOME_NET"
+        HTTP_SERVERS: "$HOME_NET"
+        SQL_SERVERS: "$HOME_NET"
+        FILE_DATA_PORTS: "[$HTTP_SERVERS, 110, 143]"
+        FTP_SERVERS: "$HOME_NET"
+        TFTP_SERVERS: "$HOME_NET"
+        TEREDO: "$EXTERNAL_NET"
+        JABBER_SERVERS: "$HOME_NET"
+        IRC_SERVERS: "!$HOME_NET"
+        AVALANCHE_SERVER: "$EXTERNAL_NET"
+        DC_SERVERS: "$HOME_NET"
+        DC_PORTS: "6666, 6667, 6668, 6669, 7000, 7001, 7019, 7020, 7021, 7022, 7023, 7025, 7026, 7067, 7106, 7109, 7200, 7201, 7606, 7645, 7704, 7705, 7708, 7800, 7801, 7802, 7804, 7864, 7865, 7875, 7932, 7937, 7938, 8500, 8501, 8502, 8503, 8504, 8505, 8506, 8507, 8508, 8509, 8510, 8511, 8512, 27374, 27375, 27356, 27183, 27184, 27185, 27186, 27187, 27188, 27189, 6711, 6712, 6713, 6714, 6715, 6716, 6717, 6718, 6719, 6720, 6721, 6722, 6723, 6724, 6725, 6726, 6727, 6728, 6729, 6730, 6731, 6732, 6733, 6734, 6735, 6736, 6737, 6738, 6739, 6740, 6741, 6742, 6743, 6744, 6745, 6746, 6747, 6748, 6749, 6750, 6751, 6752, 6753, 6754, 6755, 6756, 6757, 6758, 6759, 6760, 6761, 6762, 6763, 6764, 6765, 6766, 6767, 6768, 6769, 6770, 6771, 6772, 6773, 6774, 6775, 6776, 6777, 6778, 6779, 6780, 6781, 6782, 6783, 6784, 6785, 6786, 6787, 6788, 6789, 6790, 6791, 6792, 6793, 6794, 6795, 6796, 6797, 6798, 6799"
+        MSSQL_SERVERS: "$HOME_NET"
+        MSSQL_PORTS: "1433"
+        MYSQL_SERVERS: "$HOME_NET"
+        MYSQL_PORTS: "3306"
+        ORACLE_SERVERS: "$HOME_NET"
+        ORACLE_PORTS: "1521"
+        POSTGRES_SERVERS: "$HOME_NET"
+        POSTGRES_PORTS: "5432"
+      port-groups:
+        HTTP_PORTS: "80"
+        SHELLCODE_PORTS: "!80"
+        ORACLE_PORTS: "1521"
+        SSH_PORTS: "22"
+        FTP_PORTS: "21"
+
+    # Logging configuration
+    default-log-dir: /var/log/suricata
+
+    # Logging outputs
+    outputs:
+      - eve-log:
+          enabled: yes
+          filetype: regular
+          filename: eve.json
+          types:
+            - alert:
+                payload: yes
+                payload-buffer-size: 4kb
+                payload-printable: yes
+                http-body: yes
+                http-body-printable: yes
+            - http:
+                extended: yes
+            - dns:
+                enabled: yes
+            - tls:
+                enabled: yes
+            - files:
+                enabled: yes
+                force-magic: no
+            - flow
+            - netflow:
+                enabled: yes
+            - metadata
+      - file-data-log:
+          enabled: no
+          filename: file-data.log
+      - file-store:
+          enabled: yes
+          log-dir: /var/log/suricata/files
+          force-magic: no
+          force-md5: no
+      - tcp-log:
+          enabled: no
+          filename: tcp.log
+      - http-log:
+          enabled: no
+          filename: http.log
+          extended: yes
+      - tls-log:
+          enabled: no
+          filename: tls.log
+      - ssh-log:
+          enabled: no
+          filename: ssh.log
+      - alert-debug:
+          enabled: no
+          filename: alert-debug.log
+      - stats:
+          enabled: yes
+          filename: stats.log
+          interval: 8
+
+    # App layer parsers
+    app-layer:
+      protocols:
+        tls:
+          enabled: yes
+        dcerpc:
+          enabled: yes
+        ftp:
+          enabled: yes
+        http:
+          enabled: yes
+        http2:
+          enabled: yes
+        ssh:
+          enabled: yes
+        smtp:
+          enabled: yes
+        dns:
+          enabled: yes
+        modbus:
+          enabled: yes
+        dnp3:
+          enabled: yes
+
+    # IPS mode
+    mode: {{ .Values.ips.mode | default "ips" }}
+
+    {{- if eq .Values.ips.mode "ips" }}
+    # NFQ settings for IPS mode
+    nfq:
+      - number: 0
+        interface: null
+        copy-mode: ips
+        repeat-count: 1
+        reuseport: false
+        bypass: yes
+        batchcount: 1
+        cpu-affinity:
+          - management-cpu-set: "0"
+            worker-cpu-set: "all"
+            verdict-cpu-set: "all"
+    {{- end }}
+
+    # Rule files to load
+    rule-files:
+      - suricata.rules
+      - custom-rules.rules
+
+    # Custom rules would be loaded from here
+{{- end }}
+
+{{- if .Values.filter.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cerberus.fullname" . }}-filter-config
+  labels:
+    {{- include "cerberus.labels" . | nindent 4 }}
+    component: filter
+  namespace: {{ .Release.Namespace }}
+data:
+  filter.conf: |
+    # Content Filter Configuration
+    [filter]
+    mode = {{ .Values.filter.mode | default "http" }}
+    cache_ttl = {{ .Values.filter.cacheTtl | default 3600 }}
+    log_level = {{ .Values.filter.logLevel | default "info" }}
+
+    [categories]
+    # Adult sites
+    adult = enabled
+
+    # Malware/Phishing
+    malware = enabled
+    phishing = enabled
+
+    # Gambling
+    gambling = enabled
+
+    # Violence/Hate
+    violence = enabled
+    hate = enabled
+
+    # Other potentially unwanted content
+    drugs = enabled
+    weapons = enabled
+
+    [whitelist]
+    # Add whitelisted domains here
+
+    [blacklist]
+    # Add blacklisted domains here
+
+    [bypass]
+    # Domains to bypass filtering
+
+    [custom]
+    # Custom filter rules
+{{- end }}
+
+{{- if .Values.global.additionalConfigMaps }}
+{{- toYaml .Values.global.additionalConfigMaps | nindent 0 }}
+{{- end }}

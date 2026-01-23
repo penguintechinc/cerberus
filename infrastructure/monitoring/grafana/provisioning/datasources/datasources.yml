@@ -1,0 +1,48 @@
+# Cerberus NGFW - Grafana Datasource Provisioning
+
+apiVersion: 1
+
+datasources:
+  # Prometheus - Primary Metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "5s"
+      httpMethod: POST
+
+  # OpenSearch - Logs
+  - name: OpenSearch
+    type: grafana-opensearch-datasource
+    access: proxy
+    url: https://opensearch:9200
+    editable: false
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: ${OPENSEARCH_PASSWORD:-Cerberus@123}
+    jsonData:
+      database: "cerberus-*"
+      flavor: opensearch
+      version: "2.11.0"
+      timeField: "@timestamp"
+      logMessageField: "message"
+      logLevelField: "level"
+      tlsSkipVerify: true
+
+  # Jaeger - Distributed Tracing
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+    jsonData:
+      tracesToLogs:
+        datasourceUid: 'OpenSearch'
+        tags: ['service.name']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        filterByTraceID: true
+        filterBySpanID: true

@@ -1,0 +1,530 @@
+##############################################################################
+# Cerberus Content Filter Container Test Configuration
+# Purpose: Define test scenarios, endpoints, and expected responses
+# Used by: test-cerberus-filter.sh and CI/CD pipelines
+##############################################################################
+
+---
+container:
+  name: cerberus-filter
+  type: go
+  description: Cerberus Content Filter - URL filtering service
+  image: cerberus-filter
+  port: 8080
+
+endpoints:
+  # ============================================================================
+  # Health & Status Endpoints
+  # ============================================================================
+
+  health:
+    method: GET
+    path: /healthz
+    description: Service health check
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - monitoring
+
+  readiness:
+    method: GET
+    path: /readyz
+    description: Service readiness probe
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - health
+      - readiness
+
+  # ============================================================================
+  # URL Check Endpoints
+  # ============================================================================
+
+  check_url:
+    method: POST
+    path: /api/v1/check
+    description: Check single URL for blocking
+    expected_status: 200
+    timeout: 5s
+    payload:
+      url: https://www.example.com
+    headers:
+      Content-Type: application/json
+    tags:
+      - filtering
+      - url-check
+    response:
+      url: string
+      domain: string
+      blocked: boolean
+      reason: string
+      categories: array
+
+  check_allowed_url:
+    method: POST
+    path: /api/v1/check
+    description: Check allowed URL (should not be blocked)
+    expected_status: 200
+    timeout: 5s
+    payload:
+      url: https://www.google.com
+    headers:
+      Content-Type: application/json
+    tags:
+      - filtering
+      - positive-case
+    expected_response:
+      blocked: false
+
+  check_blocked_url:
+    method: POST
+    path: /api/v1/check
+    description: Check blocked URL (should be blocked)
+    expected_status: 200
+    timeout: 5s
+    payload:
+      url: https://malware.example.com
+    headers:
+      Content-Type: application/json
+    tags:
+      - filtering
+      - negative-case
+    expected_response:
+      blocked: true
+
+  check_batch:
+    method: POST
+    path: /api/v1/check/batch
+    description: Check multiple URLs in batch
+    expected_status: 200
+    timeout: 10s
+    payload:
+      urls:
+        - https://www.google.com
+        - https://www.github.com
+        - https://example.com
+    headers:
+      Content-Type: application/json
+    tags:
+      - filtering
+      - batch
+    response:
+      results: array
+
+  # ============================================================================
+  # Blocklist Endpoints
+  # ============================================================================
+
+  list_blocklist:
+    method: GET
+    path: /api/v1/blocklist
+    description: List all blocklist entries
+    expected_status: 200
+    timeout: 10s
+    tags:
+      - blocklist
+      - listing
+    response:
+      entries: array
+      count: integer
+
+  add_blocklist:
+    method: POST
+    path: /api/v1/blocklist
+    description: Add domain to blocklist
+    expected_status: 200
+    timeout: 5s
+    payload:
+      domain: blocked-domain.example.com
+    headers:
+      Content-Type: application/json
+    tags:
+      - blocklist
+      - creation
+    response:
+      status: string
+      domain: string
+
+  remove_blocklist:
+    method: DELETE
+    path: /api/v1/blocklist/{entry}
+    description: Remove domain from blocklist
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - blocklist
+      - deletion
+    response:
+      status: string
+      domain: string
+
+  reload_blocklists:
+    method: POST
+    path: /api/v1/blocklist/reload
+    description: Reload blocklists from disk
+    expected_status: 200
+    timeout: 15s
+    headers:
+      Content-Type: application/json
+    tags:
+      - blocklist
+      - maintenance
+    response:
+      status: string
+
+  # ============================================================================
+  # Allowlist Endpoints
+  # ============================================================================
+
+  list_allowlist:
+    method: GET
+    path: /api/v1/allowlist
+    description: List all allowlist entries
+    expected_status: 200
+    timeout: 10s
+    tags:
+      - allowlist
+      - listing
+    response:
+      entries: array
+      count: integer
+
+  add_allowlist:
+    method: POST
+    path: /api/v1/allowlist
+    description: Add domain to allowlist
+    expected_status: 200
+    timeout: 5s
+    payload:
+      domain: trusted.example.com
+    headers:
+      Content-Type: application/json
+    tags:
+      - allowlist
+      - creation
+    response:
+      status: string
+      domain: string
+
+  remove_allowlist:
+    method: DELETE
+    path: /api/v1/allowlist/{entry}
+    description: Remove domain from allowlist
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - allowlist
+      - deletion
+    response:
+      status: string
+      domain: string
+
+  # ============================================================================
+  # Category Endpoints
+  # ============================================================================
+
+  list_categories:
+    method: GET
+    path: /api/v1/categories
+    description: List all content categories
+    expected_status: 200
+    timeout: 10s
+    tags:
+      - categories
+      - listing
+    response:
+      categories: array
+      count: integer
+
+  list_category_urls:
+    method: GET
+    path: /api/v1/categories/{category}/urls
+    description: List URLs in specific category
+    expected_status: 200
+    timeout: 10s
+    tags:
+      - categories
+      - details
+    response:
+      category: string
+      urls: array
+      count: integer
+
+  block_category:
+    method: POST
+    path: /api/v1/categories/{category}/block
+    description: Block all URLs in category
+    expected_status: 200
+    timeout: 5s
+    headers:
+      Content-Type: application/json
+    tags:
+      - categories
+      - blocking
+    response:
+      status: string
+      category: string
+
+  allow_category:
+    method: POST
+    path: /api/v1/categories/{category}/allow
+    description: Allow all URLs in category
+    expected_status: 200
+    timeout: 5s
+    headers:
+      Content-Type: application/json
+    tags:
+      - categories
+      - allowing
+    response:
+      status: string
+      category: string
+
+  # ============================================================================
+  # Statistics Endpoints
+  # ============================================================================
+
+  get_stats:
+    method: GET
+    path: /api/v1/stats
+    description: Get filter statistics
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - statistics
+      - monitoring
+    response:
+      blocklist: object
+      categorizer: object
+
+  # ============================================================================
+  # Metrics Endpoints
+  # ============================================================================
+
+  prometheus_metrics:
+    method: GET
+    path: /metrics
+    description: Prometheus metrics endpoint
+    expected_status: 200
+    timeout: 5s
+    tags:
+      - metrics
+      - monitoring
+
+# ============================================================================
+# Error Cases & Edge Cases
+# ============================================================================
+
+error_cases:
+  - name: Check Empty URL
+    method: POST
+    path: /api/v1/check
+    payload:
+      url: ""
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Check Missing URL Field
+    method: POST
+    path: /api/v1/check
+    payload: {}
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Batch Exceeds Size Limit
+    method: POST
+    path: /api/v1/check/batch
+    payload:
+      urls: ["https://example1.com", "https://example2.com"]
+    description: Batch with 101+ URLs should be rejected
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+      - batch
+
+  - name: Invalid Endpoint
+    method: GET
+    path: /api/v1/nonexistent
+    expected_status: 404
+    tags:
+      - error_handling
+      - routing
+
+  - name: Malformed JSON
+    method: POST
+    path: /api/v1/check
+    payload: "{invalid json"
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Missing Content-Type Header
+    method: POST
+    path: /api/v1/check
+    payload:
+      url: https://example.com
+    expected_status: 400
+    tags:
+      - error_handling
+      - validation
+
+  - name: Add Blocklist Missing Domain
+    method: POST
+    path: /api/v1/blocklist
+    payload: {}
+    expected_status: 400
+    tags:
+      - error_handling
+      - blocklist
+
+  - name: Add Blocklist Empty Domain
+    method: POST
+    path: /api/v1/blocklist
+    payload:
+      domain: ""
+    expected_status: 400
+    tags:
+      - error_handling
+      - blocklist
+
+  - name: Block Nonexistent Category
+    method: POST
+    path: /api/v1/categories/nonexistent-category/block
+    expected_status: 404
+    tags:
+      - error_handling
+      - categories
+
+  - name: List Nonexistent Category URLs
+    method: GET
+    path: /api/v1/categories/nonexistent/urls
+    expected_status: 404
+    tags:
+      - error_handling
+      - categories
+
+# ============================================================================
+# Performance Benchmarks
+# ============================================================================
+
+performance:
+  health_check:
+    target_latency_ms: 50
+    acceptable_latency_ms: 500
+
+  url_check:
+    target_latency_ms: 500
+    acceptable_latency_ms: 2000
+
+  batch_check_100:
+    target_latency_ms: 2000
+    acceptable_latency_ms: 10000
+    batch_size: 100
+
+  list_blocklist:
+    target_latency_ms: 500
+    acceptable_latency_ms: 5000
+
+  list_categories:
+    target_latency_ms: 200
+    acceptable_latency_ms: 2000
+
+  stats:
+    target_latency_ms: 100
+    acceptable_latency_ms: 1000
+
+# ============================================================================
+# Functional Requirements
+# ============================================================================
+
+functional_requirements:
+  url_checking:
+    - description: Check URLs against blocklist
+      method: POST
+      path: /api/v1/check
+      expected: Returns blocked status and reason
+    - description: Batch check multiple URLs
+      method: POST
+      path: /api/v1/check/batch
+      expected: Returns results array for each URL
+    - description: Support domain-only checking
+      method: POST
+      path: /api/v1/check
+      payload:
+        domain: example.com
+      expected: Should work with just domain
+
+  blocklist_management:
+    - description: Retrieve all blocked domains
+      method: GET
+      path: /api/v1/blocklist
+      expected: Returns array of entries with count
+    - description: Add domain to blocklist
+      method: POST
+      path: /api/v1/blocklist
+      expected: Domain added and returned
+    - description: Remove domain from blocklist
+      method: DELETE
+      path: /api/v1/blocklist/{entry}
+      expected: Domain removed from blocklist
+    - description: Reload blocklists from disk
+      method: POST
+      path: /api/v1/blocklist/reload
+      expected: Blocklists reloaded successfully
+
+  allowlist_management:
+    - description: Override blocklist with allowlist
+      method: POST
+      path: /api/v1/allowlist
+      expected: Allowed domains bypass blocklist
+    - description: Manage allowlist entries
+      method: GET
+      path: /api/v1/allowlist
+      expected: Returns array of allowed entries
+
+  category_filtering:
+    - description: List available content categories
+      method: GET
+      path: /api/v1/categories
+      expected: Returns categories with metadata
+    - description: Block entire category
+      method: POST
+      path: /api/v1/categories/{category}/block
+      expected: All URLs in category blocked
+    - description: Allow entire category
+      method: POST
+      path: /api/v1/categories/{category}/allow
+      expected: All URLs in category allowed
+
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+dependencies:
+  ports:
+    filter: 8080
+    metrics: 8080
+
+# ============================================================================
+# Test Environments
+# ============================================================================
+
+environments:
+  development:
+    filter_url: http://localhost:8080
+    timeout: 30s
+
+  docker:
+    filter_url: http://cerberus-filter:8080
+    timeout: 30s
+
+  kubernetes:
+    filter_url: http://cerberus-filter.default.svc.cluster.local:8080
+    timeout: 60s

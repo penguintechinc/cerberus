@@ -1,0 +1,262 @@
+# Cerberus NGFW Helm Values
+# Default configuration values
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Cerberus API (Flask backend)
+api:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Cerberus WebUI (React frontend)
+webui:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-webui
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: cerberus.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+# Cerberus IPS (Suricata)
+ips:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-ips
+    tag: latest
+    pullPolicy: IfNotPresent
+  mode: ips  # ips, ips-nfq, or ids
+  interface: eth0
+  securityContext:
+    privileged: true
+    capabilities:
+      add:
+        - NET_ADMIN
+        - NET_RAW
+        - SYS_NICE
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+
+# Cerberus Content Filter
+filter:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-filter
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Cerberus SSL Inspector
+sslInspector:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: cerberus-ssl-inspector
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8443
+
+# VPN Servers
+vpn:
+  wireguard:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cerberus-vpn-wireguard
+      tag: latest
+    service:
+      type: LoadBalancer
+      port: 51820
+      protocol: UDP
+    securityContext:
+      privileged: true
+      capabilities:
+        add:
+          - NET_ADMIN
+          - SYS_MODULE
+
+  ipsec:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cerberus-vpn-ipsec
+      tag: latest
+    service:
+      type: LoadBalancer
+      ports:
+        - name: ike
+          port: 500
+          protocol: UDP
+        - name: natt
+          port: 4500
+          protocol: UDP
+    securityContext:
+      privileged: true
+
+  openvpn:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cerberus-vpn-openvpn
+      tag: latest
+    service:
+      type: LoadBalancer
+      port: 1194
+      protocol: UDP
+    securityContext:
+      privileged: true
+      capabilities:
+        add:
+          - NET_ADMIN
+
+# XDP Packet Steering (requires privileged mode)
+xdp:
+  enabled: false
+  image:
+    repository: cerberus-xdp
+    tag: latest
+  interface: eth0
+  securityContext:
+    privileged: true
+
+# PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    database: cerberus
+    username: cerberus
+    password: ""
+    existingSecret: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Redis
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+
+# OpenSearch
+opensearch:
+  enabled: true
+  singleNode: true
+  replicas: 1
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+
+# Network Security Monitoring (optional)
+nsm:
+  enabled: false
+
+  minio:
+    enabled: false
+    rootUser: admin
+    rootPassword: ""
+    buckets:
+      - name: arkime-pcaps
+        policy: none
+
+  arkime:
+    enabled: false
+    image:
+      repository: cerberus-arkime
+      tag: latest
+
+  zeek:
+    enabled: false
+    image:
+      repository: cerberus-zeek
+      tag: latest
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  grafana:
+    enabled: true
+    adminPassword: ""
+
+# Persistence
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+# Service Account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Pod Security
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Node Selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

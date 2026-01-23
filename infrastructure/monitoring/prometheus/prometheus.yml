@@ -1,0 +1,167 @@
+# Cerberus NGFW - Prometheus Configuration
+# Scrape targets for all Cerberus and MarchProxy components
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cerberus'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - alertmanager:9093
+
+# Rule files
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # Prometheus Self-Monitoring
+  # ============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+
+  # ============================================================================
+  # Cerberus Core Services
+  # ============================================================================
+  - job_name: 'cerberus-api'
+    static_configs:
+      - targets: ['cerberus-api:9105']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'cerberus-xdp'
+    static_configs:
+      - targets: ['cerberus-xdp:9106']
+    metrics_path: /metrics
+    scrape_interval: 5s  # Fast scrape for packet metrics
+
+  - job_name: 'cerberus-webui'
+    static_configs:
+      - targets: ['cerberus-webui:3000']
+    metrics_path: /metrics
+
+  # ============================================================================
+  # NGFW Services
+  # ============================================================================
+  - job_name: 'cerberus-ips'
+    static_configs:
+      - targets: ['cerberus-ips:9100']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'cerberus-filter'
+    static_configs:
+      - targets: ['cerberus-filter:9101']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'cerberus-ssl-inspector'
+    static_configs:
+      - targets: ['cerberus-ssl-inspector:8889']
+    metrics_path: /metrics
+
+  # ============================================================================
+  # VPN Services
+  # ============================================================================
+  - job_name: 'cerberus-vpn-wireguard'
+    static_configs:
+      - targets: ['cerberus-vpn-wireguard:9102']
+    metrics_path: /metrics
+
+  - job_name: 'cerberus-vpn-ipsec'
+    static_configs:
+      - targets: ['cerberus-vpn-ipsec:9103']
+    metrics_path: /metrics
+
+  - job_name: 'cerberus-vpn-openvpn'
+    static_configs:
+      - targets: ['cerberus-vpn-openvpn:9104']
+    metrics_path: /metrics
+
+  # ============================================================================
+  # MarchProxy Services
+  # ============================================================================
+  - job_name: 'marchproxy-api-server'
+    static_configs:
+      - targets: ['marchproxy-api-server:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'marchproxy-nlb'
+    static_configs:
+      - targets: ['marchproxy-nlb:7001']
+    metrics_path: /metrics
+    scrape_interval: 5s  # Fast scrape for proxy metrics
+
+  - job_name: 'marchproxy-alb'
+    static_configs:
+      - targets: ['marchproxy-alb:9901']
+    metrics_path: /stats/prometheus
+    scrape_interval: 5s  # Envoy metrics
+
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    metrics_path: /metrics
+    # Note: Requires postgres_exporter sidecar
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: /metrics
+    # Note: Requires redis_exporter sidecar
+
+  - job_name: 'opensearch'
+    static_configs:
+      - targets: ['opensearch:9200']
+    metrics_path: /_prometheus/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    basic_auth:
+      username: admin
+      password: Cerberus@123
+
+  # ============================================================================
+  # NSM Services (Optional - only scraped if running)
+  # ============================================================================
+  - job_name: 'cerberus-arkime'
+    static_configs:
+      - targets: ['cerberus-arkime:8005']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: 'minio'
+    static_configs:
+      - targets: ['minio:9000']
+    metrics_path: /minio/v2/metrics/cluster
+
+  # ============================================================================
+  # Observability Stack
+  # ============================================================================
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:14269']
+    metrics_path: /metrics
+
+  - job_name: 'fluent-bit'
+    static_configs:
+      - targets: ['fluent-bit:2020']
+    metrics_path: /api/v1/metrics/prometheus
+
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: /metrics
