@@ -3,7 +3,7 @@
 
 # Web Framework
 Flask==3.1.0
-flask-cors==5.0.0
+flask-cors==6.0.0
 
 # Database
 pydal==20241111.2
