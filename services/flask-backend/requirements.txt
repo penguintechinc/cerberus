@@ -2,7 +2,7 @@
 # Python 3.13+
 
 # Web Framework
-Flask==3.1.0
+Flask==3.1.1
 flask-cors==5.0.0
 
 # Database
