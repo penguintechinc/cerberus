@@ -1,10 +1,11 @@
-module github.com/penguintechinc/project-template/services/go-backend
+module github.com/penguintechinc/cerberus/services/go-backend
 
-go 1.23.0
+go 1.24
 
 require (
 	github.com/cilium/ebpf v0.16.0
 	github.com/gin-gonic/gin v1.10.0
+	github.com/penguintechinc/penguin-libs/packages/go-common v0.1.0
 	github.com/prometheus/client_golang v1.20.5
 	golang.org/x/sys v0.26.0
 )
@@ -36,6 +37,8 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2 // indirect

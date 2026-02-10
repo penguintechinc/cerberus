@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/penguintechinc/project-template/services/go-backend/internal/config"
-	"github.com/penguintechinc/project-template/services/go-backend/internal/memory"
-	"github.com/penguintechinc/project-template/services/go-backend/internal/metrics"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/config"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/memory"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/metrics"
 )
 
 // Server represents the HTTP server.

@@ -1,11 +1,18 @@
 """Authentication Endpoints."""
 
 import hashlib
+import logging
 from datetime import datetime, timedelta
 
 import bcrypt
 import jwt
 from flask import Blueprint, current_app, jsonify, request
+
+try:
+    from penguin_libs.logging import SanitizedLogger
+    logger = SanitizedLogger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
 
 from .middleware import auth_required, get_current_user
 from .models import (
@@ -92,16 +99,23 @@ def login():
     access_token = create_access_token(user["id"], user["role"])
     refresh_token, refresh_expires = create_refresh_token(user["id"])
 
+    logger.info("User logged in: %s (role: %s)", user["email"], user["role"])
+
     return jsonify({
+        "success": True,
         "access_token": access_token,
         "refresh_token": refresh_token,
+        "token": access_token,
+        "refreshToken": refresh_token,
         "token_type": "Bearer",
         "expires_in": int(current_app.config["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds()),
         "user": {
             "id": user["id"],
             "email": user["email"],
             "full_name": user.get("full_name", ""),
+            "name": user.get("full_name", ""),
             "role": user["role"],
+            "roles": [user["role"]],
         },
     }), 200
 
@@ -177,6 +191,8 @@ def logout():
     # Revoke all user's refresh tokens
     revoked_count = revoke_all_user_tokens(user["id"])
 
+    logger.info("User logged out: %s (tokens revoked: %d)", user["email"], revoked_count)
+
     return jsonify({
         "message": "Successfully logged out",
         "tokens_revoked": revoked_count,
@@ -231,6 +247,8 @@ def register():
         full_name=full_name,
         role="viewer",  # Default role for self-registration
     )
+
+    logger.info("New user registered: %s", email)
 
     return jsonify({
         "message": "Registration successful",

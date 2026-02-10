@@ -1,5 +1,7 @@
 """Flask Backend Application Factory."""
 
+import logging
+
 from flask import Flask
 from flask_cors import CORS
 from prometheus_client import make_wsgi_app
@@ -7,6 +9,12 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 from .config import Config
 from .models import init_db, get_db
+
+try:
+    from penguin_libs.logging import SanitizedLogger
+    logger = SanitizedLogger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
 
 
 def create_app(config_class: type = Config) -> Flask:
@@ -45,7 +53,8 @@ def create_app(config_class: type = Config) -> Flask:
             db.executesql("SELECT 1")
             return {"status": "healthy", "database": "connected"}, 200
         except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}, 503
+            logger.error("Health check failed: %s", e)
+            return {"status": "unhealthy", "error": "database connection failed"}, 503
 
     # Readiness check endpoint
     @app.route("/readyz")

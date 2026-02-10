@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Flask Backend Entry Point."""
 
+import logging
 import os
 import sys
 import time
@@ -9,23 +10,29 @@ from app import create_app
 from app.auth import hash_password
 from app.config import Config
 
+try:
+    from penguin_libs.logging import SanitizedLogger
+    logger = SanitizedLogger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
+
 
 def wait_for_database(max_retries: int = 30, retry_delay: int = 2) -> bool:
     """Wait for database to be available."""
     from pydal import DAL
 
     db_uri = Config.get_db_uri()
-    print(f"Waiting for database connection: {Config.DB_HOST}:{Config.DB_PORT}")
+    logger.info("Waiting for database connection: %s:%s", Config.DB_HOST, Config.DB_PORT)
 
     for attempt in range(1, max_retries + 1):
         try:
             db = DAL(db_uri, pool_size=1, migrate=False)
             db.executesql("SELECT 1")
             db.close()
-            print(f"Database connection successful after {attempt} attempt(s)")
+            logger.info("Database connection successful after %d attempt(s)", attempt)
             return True
         except Exception as e:
-            print(f"Database connection attempt {attempt}/{max_retries} failed: {e}")
+            logger.warning("Database connection attempt %d/%d failed: %s", attempt, max_retries, e)
             if attempt < max_retries:
                 time.sleep(retry_delay)
 
@@ -46,26 +53,26 @@ def create_default_admin():
         # Check if admin already exists (shouldn't, but safety check)
         existing = get_user_by_email(admin_email)
         if not existing:
-            print(f"Creating default admin user: {admin_email}")
+            logger.info("Creating default admin user: %s", admin_email)
             create_user(
                 email=admin_email,
                 password_hash=hash_password(admin_password),
                 full_name="System Administrator",
                 role="admin",
             )
-            print("Default admin user created successfully")
-            print("WARNING: Change the default password immediately!")
+            logger.info("Default admin user created successfully")
+            logger.warning("Change the default password immediately!")
         else:
-            print("Admin user already exists")
+            logger.info("Admin user already exists")
     else:
-        print(f"Database has {user_count} existing user(s), skipping default admin creation")
+        logger.info("Database has %d existing user(s), skipping default admin creation", user_count)
 
 
 def main():
     """Main entry point."""
     # Wait for database
     if not wait_for_database():
-        print("ERROR: Could not connect to database after maximum retries")
+        logger.error("Could not connect to database after maximum retries")
         sys.exit(1)
 
     # Create Flask app
@@ -80,7 +87,7 @@ def main():
     port = int(os.getenv("FLASK_PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
-    print(f"Starting Flask backend on {host}:{port}")
+    logger.info("Starting Flask backend on %s:%d", host, port)
 
     if debug:
         # Development mode with auto-reload

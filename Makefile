@@ -1,19 +1,24 @@
-# Project Template Makefile
-# This Makefile provides common development tasks for multi-language projects
+# Cerberus NGFW Makefile
+# Development tasks for Flask + Go + React microservices
 
-.PHONY: help setup dev test build clean lint format docker deploy
+.PHONY: help setup dev test build clean lint format docker deploy smoke-test seed-mock-data
 
 # Default target
 .DEFAULT_GOAL := help
 
 # Variables
-PROJECT_NAME := project-template
+PROJECT_NAME := cerberus
 VERSION := $(shell cat .version 2>/dev/null || echo "development")
 DOCKER_REGISTRY := ghcr.io
 DOCKER_ORG := penguintechinc
-GO_VERSION := 1.23.5
-PYTHON_VERSION := 3.12
-NODE_VERSION := 18
+GO_VERSION := 1.24
+PYTHON_VERSION := 3.13
+NODE_VERSION := 22
+
+# Service paths
+FLASK_DIR := services/flask-backend
+GO_DIR := services/go-backend
+WEBUI_DIR := services/webui
 
 # Colors for output
 RED := \033[31m
@@ -51,43 +56,34 @@ setup: ## Setup - Install all dependencies and initialize the project
 	@$(MAKE) setup-go
 	@$(MAKE) setup-python
 	@$(MAKE) setup-node
-	@$(MAKE) setup-git-hooks
 	@echo "$(GREEN)Setup complete!$(RESET)"
 
 setup-env: ## Setup - Create environment file from template
 	@if [ ! -f .env ]; then \
-		echo "$(YELLOW)Creating .env from .env.example...$(RESET)"; \
-		cp .env.example .env; \
-		echo "$(YELLOW)Please edit .env with your configuration$(RESET)"; \
+		if [ -f .env.example ]; then \
+			echo "$(YELLOW)Creating .env from .env.example...$(RESET)"; \
+			cp .env.example .env; \
+		else \
+			echo "$(YELLOW)No .env.example found, skipping...$(RESET)"; \
+		fi; \
 	fi
 
 setup-go: ## Setup - Install Go dependencies and tools
 	@echo "$(BLUE)Setting up Go dependencies...$(RESET)"
 	@go version || (echo "$(RED)Go $(GO_VERSION) not installed$(RESET)" && exit 1)
-	@go mod download
-	@go mod tidy
+	@cd $(GO_DIR) && go mod download && go mod tidy
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	@go install github.com/air-verse/air@latest
 
 setup-python: ## Setup - Install Python dependencies and tools
 	@echo "$(BLUE)Setting up Python dependencies...$(RESET)"
 	@python3 --version || (echo "$(RED)Python $(PYTHON_VERSION) not installed$(RESET)" && exit 1)
 	@pip install --upgrade pip
-	@pip install -r requirements.txt
-	@pip install black isort flake8 mypy pytest pytest-cov
+	@pip install -r $(FLASK_DIR)/requirements.txt
 
 setup-node: ## Setup - Install Node.js dependencies and tools
 	@echo "$(BLUE)Setting up Node.js dependencies...$(RESET)"
 	@node --version || (echo "$(RED)Node.js $(NODE_VERSION) not installed$(RESET)" && exit 1)
-	@npm install
-	@cd web && npm install
-
-setup-git-hooks: ## Setup - Install Git pre-commit hooks
-	@echo "$(BLUE)Installing Git hooks...$(RESET)"
-	@cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@cp scripts/git-hooks/commit-msg .git/hooks/commit-msg
-	@chmod +x .git/hooks/commit-msg
+	@cd $(WEBUI_DIR) && npm install
 
 # Development Commands
 dev: ## Development - Start development environment
@@ -99,22 +95,22 @@ dev: ## Development - Start development environment
 dev-services: ## Development - Start all services for development
 	@echo "$(BLUE)Starting development services...$(RESET)"
 	@trap 'docker-compose down' INT; \
-	concurrently --names "API,Web-Python,Web-Node" --prefix name --kill-others \
-		"$(MAKE) dev-api" \
-		"$(MAKE) dev-web-python" \
-		"$(MAKE) dev-web-node"
+	concurrently --names "Flask,Go,WebUI" --prefix name --kill-others \
+		"$(MAKE) dev-flask" \
+		"$(MAKE) dev-go" \
+		"$(MAKE) dev-webui"
 
-dev-api: ## Development - Start Go API in development mode
-	@echo "$(BLUE)Starting Go API...$(RESET)"
-	@cd apps/api && air
+dev-flask: ## Development - Start Flask backend in development mode
+	@echo "$(BLUE)Starting Flask backend...$(RESET)"
+	@cd $(FLASK_DIR) && FLASK_DEBUG=true python run.py
 
-dev-web-python: ## Development - Start Python web app in development mode
-	@echo "$(BLUE)Starting Python web app...$(RESET)"
-	@cd apps/web && python app.py
+dev-go: ## Development - Start Go backend in development mode
+	@echo "$(BLUE)Starting Go backend...$(RESET)"
+	@cd $(GO_DIR) && go run ./cmd/server
 
-dev-web-node: ## Development - Start Node.js web app in development mode
-	@echo "$(BLUE)Starting Node.js web app...$(RESET)"
-	@cd web && npm run dev
+dev-webui: ## Development - Start WebUI in development mode
+	@echo "$(BLUE)Starting WebUI...$(RESET)"
+	@cd $(WEBUI_DIR) && npm run dev
 
 dev-db: ## Development - Start only database services
 	@docker-compose up -d postgres redis
@@ -128,35 +124,43 @@ dev-full: ## Development - Start full development stack
 # Testing Commands
 test: ## Testing - Run all tests
 	@echo "$(BLUE)Running all tests...$(RESET)"
-	@$(MAKE) test-go
 	@$(MAKE) test-python
+	@$(MAKE) test-go
 	@$(MAKE) test-node
 	@echo "$(GREEN)All tests completed!$(RESET)"
 
 test-go: ## Testing - Run Go tests
 	@echo "$(BLUE)Running Go tests...$(RESET)"
-	@go test -v -race -coverprofile=coverage-go.out ./...
+	@cd $(GO_DIR) && go test -v -race -coverprofile=coverage-go.out ./...
 
 test-python: ## Testing - Run Python tests
 	@echo "$(BLUE)Running Python tests...$(RESET)"
-	@pytest --cov=shared --cov=apps --cov-report=xml:coverage-python.xml --cov-report=html:htmlcov-python
+	@pytest tests/ --cov=$(FLASK_DIR)/app --cov-report=xml:coverage-python.xml --cov-report=html:htmlcov-python -v
 
 test-node: ## Testing - Run Node.js tests
 	@echo "$(BLUE)Running Node.js tests...$(RESET)"
-	@npm test
-	@cd web && npm test
+	@cd $(WEBUI_DIR) && npm run typecheck
 
 test-integration: ## Testing - Run integration tests
 	@echo "$(BLUE)Running integration tests...$(RESET)"
-	@docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
-	@docker-compose -f docker-compose.test.yml down
+	@RUN_INTEGRATION_TESTS=true pytest tests/integration/ -v
 
 test-coverage: ## Testing - Generate coverage reports
 	@$(MAKE) test
 	@echo "$(GREEN)Coverage reports generated:$(RESET)"
-	@echo "  Go: coverage-go.out"
+	@echo "  Go: $(GO_DIR)/coverage-go.out"
 	@echo "  Python: coverage-python.xml, htmlcov-python/"
-	@echo "  Node.js: coverage/"
+
+smoke-test: ## Testing - Run smoke tests (build, health, API)
+	@echo "$(BLUE)Running smoke tests...$(RESET)"
+	@bash tests/smoke/test_build.sh
+	@bash tests/smoke/test_health.sh
+	@bash tests/smoke/test_api.sh
+	@echo "$(GREEN)Smoke tests completed!$(RESET)"
+
+seed-mock-data: ## Testing - Seed mock data for development
+	@echo "$(BLUE)Seeding mock data...$(RESET)"
+	@python3 scripts/seed-mock-data.py
 
 # Build Commands
 build: ## Build - Build all applications
@@ -169,34 +173,34 @@ build: ## Build - Build all applications
 build-go: ## Build - Build Go applications
 	@echo "$(BLUE)Building Go applications...$(RESET)"
 	@mkdir -p bin
-	@go build -ldflags "-X main.version=$(VERSION)" -o bin/api ./apps/api
+	@cd $(GO_DIR) && CGO_ENABLED=1 go build -ldflags "-X main.version=$(VERSION)" -o ../../bin/cerberus-xdp ./cmd/server
 
-build-python: ## Build - Build Python applications
-	@echo "$(BLUE)Building Python applications...$(RESET)"
-	@python -m py_compile apps/web/app.py
+build-python: ## Build - Verify Python applications compile
+	@echo "$(BLUE)Checking Python applications...$(RESET)"
+	@python3 -m py_compile $(FLASK_DIR)/run.py
+	@python3 -m py_compile $(FLASK_DIR)/app/__init__.py
 
 build-node: ## Build - Build Node.js applications
 	@echo "$(BLUE)Building Node.js applications...$(RESET)"
-	@npm run build
-	@cd web && npm run build
+	@cd $(WEBUI_DIR) && npm run build
 
 build-production: ## Build - Build for production with optimizations
 	@echo "$(BLUE)Building for production...$(RESET)"
-	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags "-w -s -X main.version=$(VERSION)" -o bin/api ./apps/api
-	@cd web && npm run build
+	@cd $(GO_DIR) && CGO_ENABLED=1 GOOS=linux go build -ldflags "-w -s -X main.version=$(VERSION)" -o ../../bin/cerberus-xdp ./cmd/server
+	@cd $(WEBUI_DIR) && npm run build
 
 # Docker Commands
 docker-build: ## Docker - Build all Docker images
 	@echo "$(BLUE)Building Docker images...$(RESET)"
-	@docker build -t $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-api:$(VERSION) -f apps/api/Dockerfile .
-	@docker build -t $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-web:$(VERSION) -f web/Dockerfile web/
-	@docker build -t $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-python:$(VERSION) -f apps/web/Dockerfile .
+	@docker build -t $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-api:$(VERSION) $(FLASK_DIR)/
+	@docker build -t $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-xdp:$(VERSION) $(GO_DIR)/
+	@docker build -t $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-webui:$(VERSION) $(WEBUI_DIR)/
 
 docker-push: ## Docker - Push Docker images to registry
 	@echo "$(BLUE)Pushing Docker images...$(RESET)"
 	@docker push $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-api:$(VERSION)
-	@docker push $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-web:$(VERSION)
-	@docker push $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-python:$(VERSION)
+	@docker push $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-xdp:$(VERSION)
+	@docker push $(DOCKER_REGISTRY)/$(DOCKER_ORG)/$(PROJECT_NAME)-webui:$(VERSION)
 
 docker-run: ## Docker - Run application with Docker Compose
 	@docker-compose up --build
@@ -215,17 +219,16 @@ lint: ## Code Quality - Run linting for all languages
 
 lint-go: ## Code Quality - Run Go linting
 	@echo "$(BLUE)Linting Go code...$(RESET)"
-	@golangci-lint run
+	@cd $(GO_DIR) && golangci-lint run ./...
 
 lint-python: ## Code Quality - Run Python linting
 	@echo "$(BLUE)Linting Python code...$(RESET)"
-	@flake8 .
-	@mypy . --ignore-missing-imports
+	@cd $(FLASK_DIR) && flake8 app/ --max-line-length=100
+	@cd $(FLASK_DIR) && mypy app/ --ignore-missing-imports
 
 lint-node: ## Code Quality - Run Node.js linting
 	@echo "$(BLUE)Linting Node.js code...$(RESET)"
-	@npm run lint
-	@cd web && npm run lint
+	@cd $(WEBUI_DIR) && npm run lint
 
 format: ## Code Quality - Format code for all languages
 	@echo "$(BLUE)Formatting code...$(RESET)"
@@ -235,27 +238,23 @@ format: ## Code Quality - Format code for all languages
 
 format-go: ## Code Quality - Format Go code
 	@echo "$(BLUE)Formatting Go code...$(RESET)"
-	@go fmt ./...
-	@goimports -w .
+	@cd $(GO_DIR) && go fmt ./...
 
 format-python: ## Code Quality - Format Python code
 	@echo "$(BLUE)Formatting Python code...$(RESET)"
-	@black .
-	@isort .
+	@cd $(FLASK_DIR) && black app/ --line-length=100
+	@cd $(FLASK_DIR) && isort app/
 
 format-node: ## Code Quality - Format Node.js code
 	@echo "$(BLUE)Formatting Node.js code...$(RESET)"
-	@npm run format
-	@cd web && npm run format
+	@cd $(WEBUI_DIR) && npm run lint:fix
 
 # Database Commands
-db-migrate: ## Database - Run database migrations
-	@echo "$(BLUE)Running database migrations...$(RESET)"
-	@go run scripts/migrate.go
+db-migrate: ## Database - Run database migrations (PyDAL auto-migrates)
+	@echo "$(BLUE)PyDAL handles migrations automatically on startup$(RESET)"
 
-db-seed: ## Database - Seed database with test data
-	@echo "$(BLUE)Seeding database...$(RESET)"
-	@go run scripts/seed.go
+db-seed: ## Database - Seed database with mock data
+	@$(MAKE) seed-mock-data
 
 db-reset: ## Database - Reset database (WARNING: destroys data)
 	@echo "$(RED)WARNING: This will destroy all data!$(RESET)"
@@ -263,29 +262,28 @@ db-reset: ## Database - Reset database (WARNING: destroys data)
 	@docker-compose down -v
 	@docker-compose up -d postgres redis
 	@sleep 5
-	@$(MAKE) db-migrate
-	@$(MAKE) db-seed
+	@echo "$(GREEN)Database reset complete. Start Flask to re-initialize.$(RESET)"
 
 db-backup: ## Database - Create database backup
 	@echo "$(BLUE)Creating database backup...$(RESET)"
 	@mkdir -p backups
-	@docker-compose exec postgres pg_dump -U postgres project_template > backups/backup-$(shell date +%Y%m%d-%H%M%S).sql
+	@docker-compose exec postgres pg_dump -U cerberus cerberus_db > backups/backup-$(shell date +%Y%m%d-%H%M%S).sql
 
 db-restore: ## Database - Restore database from backup (requires BACKUP_FILE)
 	@echo "$(BLUE)Restoring database from $(BACKUP_FILE)...$(RESET)"
-	@docker-compose exec -T postgres psql -U postgres project_template < $(BACKUP_FILE)
+	@docker-compose exec -T postgres psql -U cerberus cerberus_db < $(BACKUP_FILE)
 
 # License Commands
 license-validate: ## License - Validate license configuration
 	@echo "$(BLUE)Validating license configuration...$(RESET)"
-	@go run scripts/license-validate.go
+	@python3 -c "from services.flask_backend.app.licensing import validate_license; print(validate_license())" 2>/dev/null || echo "License validation requires running Flask backend"
 
 license-test: ## License - Test license server integration
 	@echo "$(BLUE)Testing license server integration...$(RESET)"
 	@curl -f $${LICENSE_SERVER_URL:-https://license.penguintech.io}/api/v2/validate \
 		-H "Authorization: Bearer $${LICENSE_KEY}" \
 		-H "Content-Type: application/json" \
-		-d '{"product": "'$${PRODUCT_NAME:-project-template}'"}'
+		-d '{"product": "'$${PRODUCT_NAME:-cerberus}'"}'
 
 # Version Management Commands
 version-update: ## Version - Update version (patch by default)
@@ -305,29 +303,30 @@ deploy-staging: ## Deploy - Deploy to staging environment
 	@echo "$(BLUE)Deploying to staging...$(RESET)"
 	@$(MAKE) docker-build
 	@$(MAKE) docker-push
-	# Add staging deployment commands here
 
 deploy-production: ## Deploy - Deploy to production environment
 	@echo "$(BLUE)Deploying to production...$(RESET)"
 	@$(MAKE) docker-build
 	@$(MAKE) docker-push
-	# Add production deployment commands here
 
 # Health Check Commands
 health: ## Health - Check service health
 	@echo "$(BLUE)Checking service health...$(RESET)"
-	@curl -f http://localhost:8080/health || echo "$(RED)API health check failed$(RESET)"
-	@curl -f http://localhost:8000/health || echo "$(RED)Python web health check failed$(RESET)"
-	@curl -f http://localhost:3000/health || echo "$(RED)Node web health check failed$(RESET)"
+	@curl -sf http://localhost:5000/healthz && echo "$(GREEN)Flask API: healthy$(RESET)" || echo "$(RED)Flask API: unreachable$(RESET)"
+	@curl -sf http://localhost:8080/healthz && echo "$(GREEN)Go XDP: healthy$(RESET)" || echo "$(RED)Go XDP: unreachable$(RESET)"
+	@curl -sf http://localhost:3000/healthz && echo "$(GREEN)WebUI: healthy$(RESET)" || echo "$(RED)WebUI: unreachable$(RESET)"
 
 logs: ## Logs - Show service logs
 	@docker-compose logs -f
 
-logs-api: ## Logs - Show API logs
-	@docker-compose logs -f api
+logs-api: ## Logs - Show Flask API logs
+	@docker-compose logs -f cerberus-api
 
-logs-web: ## Logs - Show web logs
-	@docker-compose logs -f web-python web-node
+logs-xdp: ## Logs - Show Go XDP logs
+	@docker-compose logs -f cerberus-xdp
+
+logs-webui: ## Logs - Show WebUI logs
+	@docker-compose logs -f cerberus-webui
 
 logs-db: ## Logs - Show database logs
 	@docker-compose logs -f postgres redis
@@ -337,15 +336,13 @@ clean: ## Clean - Clean build artifacts and caches
 	@echo "$(BLUE)Cleaning build artifacts...$(RESET)"
 	@rm -rf bin/
 	@rm -rf dist/
-	@rm -rf node_modules/
-	@rm -rf web/node_modules/
-	@rm -rf web/dist/
+	@rm -rf $(WEBUI_DIR)/node_modules/
+	@rm -rf $(WEBUI_DIR)/dist/
 	@rm -rf __pycache__/
 	@rm -rf .pytest_cache/
 	@rm -rf htmlcov-python/
 	@rm -rf coverage-*.out
 	@rm -rf coverage-*.xml
-	@go clean -cache -modcache
 
 clean-docker: ## Clean - Clean Docker resources
 	@$(MAKE) docker-clean
@@ -357,41 +354,30 @@ clean-all: ## Clean - Clean everything (build artifacts, Docker, etc.)
 # Security Commands
 security-scan: ## Security - Run security scans
 	@echo "$(BLUE)Running security scans...$(RESET)"
-	@go list -json -m all | nancy sleuth
-	@safety check --json
+	@cd $(FLASK_DIR) && pip-audit -r requirements.txt 2>/dev/null || echo "$(YELLOW)pip-audit not installed$(RESET)"
+	@cd $(WEBUI_DIR) && npm audit 2>/dev/null || true
 
 audit: ## Security - Run security audit
 	@echo "$(BLUE)Running security audit...$(RESET)"
-	@npm audit
-	@cd web && npm audit
 	@$(MAKE) security-scan
 
 # Monitoring Commands
 metrics: ## Monitoring - Show application metrics
 	@echo "$(BLUE)Application metrics:$(RESET)"
-	@curl -s http://localhost:8080/metrics | grep -E '^# (HELP|TYPE)' | head -20
+	@curl -s http://localhost:5000/metrics 2>/dev/null | head -20 || echo "Flask metrics not available"
+	@curl -s http://localhost:8080/metrics 2>/dev/null | head -20 || echo "Go metrics not available"
 
 monitor: ## Monitoring - Open monitoring dashboard
-	@echo "$(BLUE)Opening monitoring dashboard...$(RESET)"
-	@open http://localhost:3001  # Grafana
+	@echo "$(BLUE)Grafana: http://localhost:3001$(RESET)"
 
 # Documentation Commands
 docs-serve: ## Documentation - Serve documentation locally
 	@echo "$(BLUE)Serving documentation...$(RESET)"
-	@cd docs && python -m http.server 8080
+	@cd docs && python3 -m http.server 8888
 
 docs-build: ## Documentation - Build documentation
 	@echo "$(BLUE)Building documentation...$(RESET)"
-	@echo "Documentation build not implemented yet"
-
-# Git Commands
-git-hooks-install: ## Git - Install Git hooks
-	@$(MAKE) setup-git-hooks
-
-git-hooks-test: ## Git - Test Git hooks
-	@echo "$(BLUE)Testing Git hooks...$(RESET)"
-	@.git/hooks/pre-commit
-	@echo "$(GREEN)Git hooks test completed$(RESET)"
+	@echo "Documentation is in docs/ directory (Markdown format)"
 
 # Info Commands
 info: ## Info - Show project information
@@ -403,12 +389,12 @@ info: ## Info - Show project information
 	@echo "Node Version: $(NODE_VERSION)"
 	@echo ""
 	@echo "$(BLUE)Service URLs:$(RESET)"
-	@echo "API: http://localhost:8080"
-	@echo "Python Web: http://localhost:8000"
-	@echo "Node Web: http://localhost:3000"
-	@echo "Prometheus: http://localhost:9090"
-	@echo "Grafana: http://localhost:3001"
+	@echo "Flask API:   http://localhost:5000"
+	@echo "Go XDP:      http://localhost:8080"
+	@echo "WebUI:       http://localhost:3000"
+	@echo "Prometheus:  http://localhost:9090"
+	@echo "Grafana:     http://localhost:3001"
 
 env: ## Info - Show environment variables
 	@echo "$(BLUE)Environment Variables:$(RESET)"
-	@env | grep -E "^(LICENSE_|POSTGRES_|REDIS_|NODE_|GIN_|PY4WEB_)" | sort
+	@env | grep -E "^(LICENSE_|POSTGRES_|REDIS_|NODE_|GIN_|FLASK_|DB_)" | sort

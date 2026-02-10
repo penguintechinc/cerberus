@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/penguintechinc/project-template/services/go-backend/internal/memory"
-	"github.com/penguintechinc/project-template/services/go-backend/internal/xdp"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/memory"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/xdp"
 )
 
 // HealthResponse is the response for health check endpoints.

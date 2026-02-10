@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,30 +10,34 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/penguintechinc/project-template/services/go-backend/internal/config"
-	"github.com/penguintechinc/project-template/services/go-backend/internal/memory"
-	"github.com/penguintechinc/project-template/services/go-backend/internal/server"
-	"github.com/penguintechinc/project-template/services/go-backend/internal/xdp"
+	gocommon "github.com/penguintechinc/penguin-libs/packages/go-common"
+
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/config"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/memory"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/server"
+	"github.com/penguintechinc/cerberus/services/go-backend/internal/xdp"
 )
 
+var logger = gocommon.NewSanitizedLogger("cerberus-xdp")
+
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Println("Starting Go high-performance backend...")
+	logger.Info("Starting Go high-performance backend...")
 
 	// Load configuration
 	cfg := config.Load()
 
-	log.Printf("Configuration loaded:")
-	log.Printf("  Environment: %s", cfg.Environment)
-	log.Printf("  Host: %s", cfg.Host)
-	log.Printf("  Port: %d", cfg.Port)
-	log.Printf("  NUMA Enabled: %v", cfg.NUMAEnabled)
-	log.Printf("  XDP Enabled: %v", cfg.XDPEnabled)
+	logger.Info("Configuration loaded",
+		"environment", cfg.Environment,
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"numa_enabled", cfg.NUMAEnabled,
+		"xdp_enabled", cfg.XDPEnabled,
+	)
 
 	// Set GOMAXPROCS based on available CPUs
 	numCPU := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPU)
-	log.Printf("  GOMAXPROCS: %d", numCPU)
+	logger.Info("GOMAXPROCS set", "cpus", numCPU)
 
 	// Initialize NUMA if enabled
 	if cfg.NUMAEnabled {
@@ -44,21 +47,21 @@ func main() {
 	// Set memlock rlimit for BPF if XDP is enabled
 	if cfg.XDPEnabled {
 		if err := xdp.SetRLimitMemlock(); err != nil {
-			log.Printf("Warning: Failed to set memlock rlimit: %v", err)
+			logger.Warn("Failed to set memlock rlimit", "error", err)
 		}
 	}
 
 	// Create and start server
 	srv, err := server.NewServer(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create server: %v", err)
+		logger.Fatal("Failed to create server", "error", err)
 	}
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Server listening on %s:%d", cfg.Host, cfg.Port)
+		logger.Info("Server listening", "host", cfg.Host, "port", cfg.Port)
 		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			logger.Fatal("Server failed", "error", err)
 		}
 	}()
 
@@ -67,17 +70,17 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	// Give outstanding requests 30 seconds to complete
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		logger.Error("Server forced to shutdown", "error", err)
 	}
 
-	log.Println("Server stopped")
+	logger.Info("Server stopped")
 }
 
 // initNUMA initializes NUMA-aware settings.
@@ -85,27 +88,26 @@ func initNUMA() {
 	info := memory.GetNUMAInfo()
 
 	if !info.Available {
-		log.Println("NUMA: Not available on this system")
+		logger.Info("NUMA: Not available on this system")
 		return
 	}
 
-	log.Printf("NUMA: Available with %d nodes", info.NodeCount)
-	log.Printf("NUMA: Current node: %d", info.CurrentNode)
+	logger.Info("NUMA available", "nodes", info.NodeCount, "current_node", info.CurrentNode)
 
 	// Log memory per node
 	for node, memMB := range info.MemoryMB {
-		log.Printf("NUMA: Node %d has %d MB memory", node, memMB)
+		logger.Info("NUMA node memory", "node", node, "memory_mb", memMB)
 	}
 
 	// Log CPUs per node
 	for node, cpus := range info.CPUsPerNode {
-		log.Printf("NUMA: Node %d has CPUs %v", node, cpus)
+		logger.Info("NUMA node CPUs", "node", node, "cpus", cpus)
 	}
 
 	// Optionally bind to a specific node (node 0 by default)
 	if err := memory.BindToNUMANode(0); err != nil {
-		log.Printf("NUMA: Warning - failed to bind to node 0: %v", err)
+		logger.Warn("Failed to bind to NUMA node 0", "error", err)
 	} else {
-		log.Println("NUMA: Successfully bound to node 0")
+		logger.Info("Successfully bound to NUMA node 0")
 	}
 }

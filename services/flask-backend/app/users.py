@@ -1,6 +1,14 @@
 """User Management Endpoints (Admin Only)."""
 
+import logging
+
 from flask import Blueprint, jsonify, request
+
+try:
+    from penguin_libs.logging import SanitizedLogger
+    logger = SanitizedLogger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
 
 from .auth import hash_password
 from .middleware import admin_required, auth_required
@@ -102,6 +110,8 @@ def create_new_user():
         role=role,
     )
 
+    logger.info("Admin created user: %s (role: %s)", email, role)
+
     # Remove password hash from response
     user.pop("password_hash", None)
 
@@ -166,6 +176,8 @@ def update_existing_user(user_id: int):
 
     updated_user = update_user(user_id, **update_data)
 
+    logger.info("Admin updated user ID %d", user_id)
+
     # Remove password hash from response
     updated_user.pop("password_hash", None)
 
@@ -197,6 +209,8 @@ def delete_existing_user(user_id: int):
 
     if not success:
         return jsonify({"error": "Failed to delete user"}), 500
+
+    logger.info("Admin deleted user ID %d", user_id)
 
     return jsonify({"message": "User deleted successfully"}), 200
 

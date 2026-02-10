@@ -3,16 +3,18 @@
 import os
 from datetime import timedelta
 
+from .secrets import get_secret
+
 
 class Config:
     """Base configuration."""
 
     # Flask
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+    SECRET_KEY = get_secret("SECRET_KEY", "dev-secret-key-change-in-production")
     DEBUG = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
     # JWT
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
+    JWT_SECRET_KEY = get_secret("JWT_SECRET_KEY", SECRET_KEY)
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         minutes=int(os.getenv("JWT_ACCESS_TOKEN_MINUTES", "30"))
     )
@@ -26,19 +28,24 @@ class Config:
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "app_db")
     DB_USER = os.getenv("DB_USER", "app_user")
-    DB_PASS = os.getenv("DB_PASS", "app_pass")
+    DB_PASS = get_secret("DB_PASS", "app_pass")
     DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
 
     # OpenSearch - Logs and Analytics
     OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
     OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
     OPENSEARCH_USER = os.getenv("OPENSEARCH_USER", "admin")
-    OPENSEARCH_PASSWORD = os.getenv("OPENSEARCH_PASSWORD", "admin")
+    OPENSEARCH_PASSWORD = get_secret("OPENSEARCH_PASSWORD", "admin")
     OPENSEARCH_USE_SSL = os.getenv("OPENSEARCH_USE_SSL", "true").lower() == "true"
     OPENSEARCH_VERIFY_CERTS = os.getenv("OPENSEARCH_VERIFY_CERTS", "false").lower() == "true"
 
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+
+    # License Server
+    LICENSE_SERVER_URL = os.getenv("LICENSE_SERVER_URL", "https://license.penguintech.io")
+    LICENSE_KEY = get_secret("LICENSE_KEY", "")
+    PRODUCT_NAME = os.getenv("PRODUCT_NAME", "cerberus")
 
     @classmethod
     def get_db_uri(cls) -> str:
