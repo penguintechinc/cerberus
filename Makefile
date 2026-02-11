@@ -1,7 +1,7 @@
 # Cerberus NGFW Makefile
 # Development tasks for Flask + Go + React microservices
 
-.PHONY: help setup dev test build clean lint format docker deploy smoke-test seed-mock-data
+.PHONY: help setup dev test build clean lint format docker deploy smoke-test test-e2e seed-mock-data
 
 # Default target
 .DEFAULT_GOAL := help
@@ -151,12 +151,18 @@ test-coverage: ## Testing - Generate coverage reports
 	@echo "  Go: $(GO_DIR)/coverage-go.out"
 	@echo "  Python: coverage-python.xml, htmlcov-python/"
 
-smoke-test: ## Testing - Run smoke tests (build, health, API)
+smoke-test: ## Testing - Run smoke tests (build, health, API, pages)
 	@echo "$(BLUE)Running smoke tests...$(RESET)"
 	@bash tests/smoke/test_build.sh
 	@bash tests/smoke/test_health.sh
 	@bash tests/smoke/test_api.sh
+	@bash tests/smoke/test_pages.sh
 	@echo "$(GREEN)Smoke tests completed!$(RESET)"
+
+test-e2e: ## Testing - Run Playwright end-to-end tests
+	@echo "$(BLUE)Running Playwright E2E tests...$(RESET)"
+	@npx playwright test
+	@echo "$(GREEN)E2E tests completed!$(RESET)"
 
 seed-mock-data: ## Testing - Seed mock data for development
 	@echo "$(BLUE)Seeding mock data...$(RESET)"
