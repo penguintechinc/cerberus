@@ -1,0 +1,658 @@
+# Default values for cerberus
+namespace: cerberus
+
+# Global settings
+global:
+  imageRegistry: registry-dal2.penguintech.io
+  imagePullSecrets: []
+
+# ============================================================================
+# Infrastructure Services
+# ============================================================================
+
+postgres:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+  env:
+    POSTGRES_DB: cerberus
+    POSTGRES_USER: cerberus
+    POSTGRES_PASSWORD: cerberus123
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+
+redis:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+  env:
+    REDIS_PASSWORD: cerberus123
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+
+opensearch:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: opensearchproject/opensearch
+    tag: "2.11.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9200
+    perfPort: 9600
+  env:
+    OPENSEARCH_INITIAL_ADMIN_PASSWORD: Cerberus@123
+    OPENSEARCH_JAVA_OPTS: "-Xms1g -Xmx1g"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+
+# ============================================================================
+# Cerberus Core Services
+# ============================================================================
+
+cerberusApi:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cerberus-api
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 5000
+    metricsPort: 9105
+  env:
+    FLASK_ENV: production
+    SECRET_KEY: change-me-in-production
+    JWT_SECRET_KEY: change-me-jwt-secret
+    DB_TYPE: postgres
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    DB_NAME: cerberus
+    DB_USER: cerberus
+    DB_PASS: cerberus123
+    REDIS_URL: redis://:cerberus123@redis:6379/0
+    DEFAULT_ADMIN_EMAIL: admin@cerberus.local
+    DEFAULT_ADMIN_PASSWORD: admin123
+    OPENSEARCH_HOST: opensearch
+    OPENSEARCH_PORT: "9200"
+    OPENSEARCH_USER: admin
+    OPENSEARCH_PASSWORD: Cerberus@123
+    MARCHPROXY_API_URL: http://marchproxy-api-server:8000
+    MARCHPROXY_XDS_HOST: marchproxy-api-server
+    MARCHPROXY_XDS_PORT: "18000"
+    PROMETHEUS_URL: http://prometheus:9090
+    LOG_LEVEL: INFO
+    RELEASE_MODE: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 5000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 5000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+cerberusXdp:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-xdp
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8080
+    metricsPort: 9106
+  env:
+    GO_ENV: production
+    HOST: 0.0.0.0
+    PORT: "8080"
+    NUMA_ENABLED: "false"
+    XDP_ENABLED: "true"
+    XDP_MODE: skb
+    XDP_INTERFACE: eth0
+    MEMORY_POOL_SLOTS: "1024"
+    MEMORY_POOL_SLOT_SIZE: "2048"
+    CERBERUS_API_URL: http://cerberus-api:5000
+    LOG_LEVEL: INFO
+  privileged: true
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+cerberusWebui:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cerberus-webui
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 3000
+  env:
+    NODE_ENV: production
+    PORT: "3000"
+    CERBERUS_API_URL: http://cerberus-api:5000
+    CERBERUS_XDP_URL: http://cerberus-xdp:8080
+    GRAFANA_URL: http://grafana:3000
+    LOG_LEVEL: INFO
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+# ============================================================================
+# MarchProxy Services
+# ============================================================================
+
+marchproxyApiServer:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: marchproxy-api-server
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8000
+    xdsPort: 18000
+  env:
+    DATABASE_URL: postgresql+asyncpg://cerberus:cerberus123@postgres:5432/cerberus
+    REDIS_URL: redis://:cerberus123@redis:6379/1
+    SECRET_KEY: change-me-in-production
+    DEBUG: "false"
+    LOG_LEVEL: info
+    XDS_GRPC_PORT: "18000"
+    XDS_GRPC_BIND: 0.0.0.0:18000
+    LICENSE_KEY: ""
+    LICENSE_SERVER_URL: https://license.penguintech.io
+    CORS_ORIGINS: http://cerberus-webui:3000,http://localhost:3000
+    JAEGER_ENABLED: "true"
+    JAEGER_HOST: jaeger
+    JAEGER_PORT: "6831"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+marchproxyNlb:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: marchproxy-nlb
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: LoadBalancer
+    port: 7000
+    adminPort: 7001
+  env:
+    API_SERVER_URL: http://marchproxy-api-server:8000
+    XDS_SERVER: marchproxy-api-server:18000
+    CLUSTER_API_KEY: default-api-key
+    PROXY_NAME: cerberus-nlb-1
+    LISTEN_PORT: "7000"
+    ADMIN_PORT: "7001"
+    LOG_LEVEL: info
+    ALB_GRPC: marchproxy-alb:50051
+    ENABLE_EBPF: "true"
+    ENABLE_XDP: "false"
+    ENABLE_AF_XDP: "false"
+    RATE_LIMIT_ENABLED: "true"
+    RATE_LIMIT_RPS: "10000"
+    JAEGER_ENABLED: "true"
+    JAEGER_HOST: jaeger
+    JAEGER_PORT: "6831"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 7001
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 7001
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+marchproxyAlb:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: marchproxy-alb
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: LoadBalancer
+    httpPort: 80
+    httpsPort: 443
+    adminPort: 9901
+    grpcPort: 50051
+  env:
+    XDS_SERVER: marchproxy-api-server:18000
+    CLUSTER_API_KEY: default-api-key
+    ENVOY_LOG_LEVEL: info
+    NUM_WORKERS: "4"
+    GRPC_PORT: "50051"
+    GRPC_BIND: 0.0.0.0:50051
+    MODULE_TYPE: alb
+    MODULE_NAME: cerberus-alb-1
+    RATE_LIMIT_ENABLED: "true"
+    JAEGER_ENABLED: "true"
+    JAEGER_HOST: jaeger
+    JAEGER_PORT: "6831"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: 9901
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 9901
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+# ============================================================================
+# NGFW Services
+# ============================================================================
+
+cerberusIps:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-ips
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    metricsPort: 9100
+  env:
+    SURICATA_MODE: ips
+    SURICATA_INTERFACE: eth0
+    CERBERUS_API_URL: http://cerberus-api:5000
+    OPENSEARCH_HOST: opensearch
+    OPENSEARCH_PORT: "9200"
+    OPENSEARCH_USER: admin
+    OPENSEARCH_PASSWORD: Cerberus@123
+    LOG_LEVEL: info
+  privileged: true
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+cerberusFilter:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cerberus-filter
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8888
+    metricsPort: 9101
+  env:
+    FILTER_MODE: proxy
+    CERBERUS_API_URL: http://cerberus-api:5000
+    REDIS_URL: redis://:cerberus123@redis:6379/2
+    OPENSEARCH_HOST: opensearch
+    OPENSEARCH_PORT: "9200"
+    LOG_LEVEL: info
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8888
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8888
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+cerberusSslInspector:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cerberus-ssl-inspector
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8889
+  env:
+    CERBERUS_API_URL: http://cerberus-api:5000
+    FILTER_URL: http://cerberus-filter:8888
+    LOG_LEVEL: info
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8889
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8889
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+# ============================================================================
+# VPN Services
+# ============================================================================
+
+cerberusVpnWireguard:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-vpn-wireguard
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: LoadBalancer
+    port: 51820
+    protocol: UDP
+    metricsPort: 9102
+  env:
+    CERBERUS_API_URL: http://cerberus-api:5000
+    WG_INTERFACE: wg0
+    WG_PORT: "51820"
+    LOG_LEVEL: info
+  privileged: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+cerberusVpnIpsec:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-vpn-ipsec
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: LoadBalancer
+    ikePort: 500
+    natPort: 4500
+    metricsPort: 9103
+  env:
+    CERBERUS_API_URL: http://cerberus-api:5000
+    LOG_LEVEL: info
+  privileged: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+cerberusVpnOpenvpn:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cerberus-vpn-openvpn
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: LoadBalancer
+    port: 1194
+    protocol: UDP
+    metricsPort: 9104
+  env:
+    CERBERUS_API_URL: http://cerberus-api:5000
+    OVPN_PORT: "1194"
+    LOG_LEVEL: info
+  privileged: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# ============================================================================
+# Observability Stack
+# ============================================================================
+
+jaeger:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: jaegertracing/all-in-one
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    collectorPort: 14268
+    queryPort: 16686
+    udpPort: 6831
+  env:
+    COLLECTOR_ZIPKIN_HTTP_PORT: "9411"
+    MEMORY_MAX_TRACES: "10000"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+prometheus:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: prom/prometheus
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9090
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+
+grafana:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: grafana/grafana
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  env:
+    GF_SECURITY_ADMIN_USER: admin
+    GF_SECURITY_ADMIN_PASSWORD: admin
+    GF_USERS_ALLOW_SIGN_UP: "false"
+    GF_SERVER_ROOT_URL: http://localhost:3001
+    GF_AUTH_ANONYMOUS_ENABLED: "false"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+
+# ============================================================================
+# Ingress Configuration
+# ============================================================================
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: cerberus.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: cerberus-webui
+          port: 3000
+        - path: /api
+          pathType: Prefix
+          service: cerberus-api
+          port: 5000
+  tls: []

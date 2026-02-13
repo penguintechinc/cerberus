@@ -1,0 +1,105 @@
+# Alpha environment overrides (local MicroK8s)
+namespace: cerberus-alpha
+
+global:
+  imageRegistry: ""
+
+# Reduced replicas for local development
+cerberusApi:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: DEBUG
+    RELEASE_MODE: "false"
+
+cerberusXdp:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: DEBUG
+
+cerberusWebui:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: DEBUG
+
+marchproxyApiServer:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: debug
+
+marchproxyNlb:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: debug
+
+marchproxyAlb:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: debug
+
+cerberusFilter:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: debug
+
+cerberusSslInspector:
+  replicaCount: 1
+  image:
+    pullPolicy: Never
+  env:
+    LOG_LEVEL: debug
+
+# Disable resource limits for local development
+postgres:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+opensearch:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+ingress:
+  enabled: true
+  hosts:
+    - host: cerberus-alpha.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: cerberus-webui
+          port: 3000
+        - path: /api
+          pathType: Prefix
+          service: cerberus-api
+          port: 5000

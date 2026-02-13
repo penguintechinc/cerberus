@@ -1,0 +1,368 @@
+{{- if .Values.cerberusApi.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-api
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "cerberus-api" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.cerberusApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-api" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-api" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: cerberus-api
+        image: {{ include "cerberus.image" (dict "component" .Values.cerberusApi "context" .) }}
+        imagePullPolicy: {{ .Values.cerberusApi.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.cerberusApi.service.port }}
+          name: http
+        - containerPort: {{ .Values.cerberusApi.service.metricsPort }}
+          name: metrics
+        env:
+        {{- include "cerberus.env" .Values.cerberusApi.env | nindent 8 }}
+        {{- with .Values.cerberusApi.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.cerberusApi.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.cerberusApi.resources | nindent 10 }}
+{{- end }}
+
+{{- if .Values.cerberusXdp.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-xdp
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "cerberus-xdp" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.cerberusXdp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-xdp" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-xdp" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: cerberus-xdp
+        image: {{ include "cerberus.image" (dict "component" .Values.cerberusXdp "context" .) }}
+        imagePullPolicy: {{ .Values.cerberusXdp.image.pullPolicy }}
+        {{- if .Values.cerberusXdp.privileged }}
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - IPC_LOCK
+            - BPF
+            - NET_RAW
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.cerberusXdp.service.port }}
+          name: http
+        - containerPort: {{ .Values.cerberusXdp.service.metricsPort }}
+          name: metrics
+        env:
+        {{- include "cerberus.env" .Values.cerberusXdp.env | nindent 8 }}
+        {{- with .Values.cerberusXdp.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.cerberusXdp.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.cerberusXdp.resources | nindent 10 }}
+        volumeMounts:
+        - name: bpf
+          mountPath: /sys/fs/bpf
+        - name: sys-kernel-debug
+          mountPath: /sys/kernel/debug
+          readOnly: true
+      volumes:
+      - name: bpf
+        hostPath:
+          path: /sys/fs/bpf
+      - name: sys-kernel-debug
+        hostPath:
+          path: /sys/kernel/debug
+{{- end }}
+
+{{- if .Values.cerberusWebui.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-webui
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "cerberus-webui" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.cerberusWebui.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-webui" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-webui" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: cerberus-webui
+        image: {{ include "cerberus.image" (dict "component" .Values.cerberusWebui "context" .) }}
+        imagePullPolicy: {{ .Values.cerberusWebui.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.cerberusWebui.service.port }}
+          name: http
+        env:
+        {{- include "cerberus.env" .Values.cerberusWebui.env | nindent 8 }}
+        {{- with .Values.cerberusWebui.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.cerberusWebui.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.cerberusWebui.resources | nindent 10 }}
+{{- end }}
+
+{{- if .Values.marchproxyApiServer.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marchproxy-api-server
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "marchproxy-api-server" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.marchproxyApiServer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "marchproxy-api-server" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "marchproxy-api-server" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: marchproxy-api-server
+        image: {{ include "cerberus.image" (dict "component" .Values.marchproxyApiServer "context" .) }}
+        imagePullPolicy: {{ .Values.marchproxyApiServer.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.marchproxyApiServer.service.port }}
+          name: http
+        - containerPort: {{ .Values.marchproxyApiServer.service.xdsPort }}
+          name: xds
+        env:
+        {{- include "cerberus.env" .Values.marchproxyApiServer.env | nindent 8 }}
+        {{- with .Values.marchproxyApiServer.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.marchproxyApiServer.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.marchproxyApiServer.resources | nindent 10 }}
+{{- end }}
+
+{{- if .Values.marchproxyNlb.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marchproxy-nlb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "marchproxy-nlb" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.marchproxyNlb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "marchproxy-nlb" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "marchproxy-nlb" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: marchproxy-nlb
+        image: {{ include "cerberus.image" (dict "component" .Values.marchproxyNlb "context" .) }}
+        imagePullPolicy: {{ .Values.marchproxyNlb.image.pullPolicy }}
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_RESOURCE
+        ports:
+        - containerPort: {{ .Values.marchproxyNlb.service.port }}
+          name: proxy
+        - containerPort: {{ .Values.marchproxyNlb.service.adminPort }}
+          name: admin
+        env:
+        {{- include "cerberus.env" .Values.marchproxyNlb.env | nindent 8 }}
+        {{- with .Values.marchproxyNlb.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.marchproxyNlb.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.marchproxyNlb.resources | nindent 10 }}
+{{- end }}
+
+{{- if .Values.marchproxyAlb.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marchproxy-alb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "marchproxy-alb" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.marchproxyAlb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "marchproxy-alb" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "marchproxy-alb" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: marchproxy-alb
+        image: {{ include "cerberus.image" (dict "component" .Values.marchproxyAlb "context" .) }}
+        imagePullPolicy: {{ .Values.marchproxyAlb.image.pullPolicy }}
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+        - containerPort: {{ .Values.marchproxyAlb.service.adminPort }}
+          name: admin
+        - containerPort: {{ .Values.marchproxyAlb.service.grpcPort }}
+          name: grpc
+        env:
+        {{- include "cerberus.env" .Values.marchproxyAlb.env | nindent 8 }}
+        {{- with .Values.marchproxyAlb.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.marchproxyAlb.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.marchproxyAlb.resources | nindent 10 }}
+{{- end }}
+
+{{- if .Values.cerberusFilter.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-filter
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "cerberus-filter" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.cerberusFilter.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-filter" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-filter" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: cerberus-filter
+        image: {{ include "cerberus.image" (dict "component" .Values.cerberusFilter "context" .) }}
+        imagePullPolicy: {{ .Values.cerberusFilter.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.cerberusFilter.service.port }}
+          name: http
+        - containerPort: {{ .Values.cerberusFilter.service.metricsPort }}
+          name: metrics
+        env:
+        {{- include "cerberus.env" .Values.cerberusFilter.env | nindent 8 }}
+        {{- with .Values.cerberusFilter.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.cerberusFilter.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.cerberusFilter.resources | nindent 10 }}
+{{- end }}
+
+{{- if .Values.cerberusSslInspector.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus-ssl-inspector
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "cerberus.componentLabels" (dict "component" "cerberus-ssl-inspector" "context" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.cerberusSslInspector.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-ssl-inspector" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cerberus.componentSelectorLabels" (dict "component" "cerberus-ssl-inspector" "context" .) | nindent 8 }}
+    spec:
+      containers:
+      - name: cerberus-ssl-inspector
+        image: {{ include "cerberus.image" (dict "component" .Values.cerberusSslInspector "context" .) }}
+        imagePullPolicy: {{ .Values.cerberusSslInspector.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.cerberusSslInspector.service.port }}
+          name: http
+        env:
+        {{- include "cerberus.env" .Values.cerberusSslInspector.env | nindent 8 }}
+        {{- with .Values.cerberusSslInspector.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.cerberusSslInspector.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.cerberusSslInspector.resources | nindent 10 }}
+{{- end }}

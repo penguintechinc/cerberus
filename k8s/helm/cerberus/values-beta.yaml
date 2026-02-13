@@ -1,0 +1,93 @@
+# Beta environment overrides (dal2 cluster)
+namespace: cerberus-beta
+
+global:
+  imageRegistry: registry-dal2.penguintech.io
+
+# Production-like replicas
+cerberusApi:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: INFO
+    RELEASE_MODE: "false"
+
+cerberusXdp:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: INFO
+
+cerberusWebui:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: INFO
+
+marchproxyApiServer:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: info
+
+marchproxyNlb:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: info
+
+marchproxyAlb:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: info
+
+cerberusFilter:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: info
+
+cerberusSslInspector:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+    registry: registry-dal2.penguintech.io
+  env:
+    LOG_LEVEL: info
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: cerberus.penguintech.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: cerberus-webui
+          port: 3000
+        - path: /api
+          pathType: Prefix
+          service: cerberus-api
+          port: 5000
+  tls:
+    - secretName: penguintech-wildcard-tls
+      hosts:
+        - cerberus.penguintech.io
