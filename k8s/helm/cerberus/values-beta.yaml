@@ -77,7 +77,7 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: cerberus.penguintech.io
+    - host: cerberus.penguintech.cloud
       paths:
         - path: /
           pathType: Prefix
@@ -90,4 +90,4 @@ ingress:
   tls:
     - secretName: penguintech-wildcard-tls
       hosts:
-        - cerberus.penguintech.io
+        - cerberus.penguintech.cloud
